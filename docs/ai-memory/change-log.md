@@ -2,6 +2,55 @@
 
 按时间倒序记录重要 AI 改动，重点保留“改了什么、为什么改、影响是什么”。
 
+## 2026-05-21 - 全局禁用右键菜单并覆盖远程子 Webview
+
+- **改动**：在 `src/main.ts` 禁用主壳层右键，在 `src/overlay-control.ts` 禁用收起态悬浮控件右键，并在 `src-tauri/src/lib.rs` 通过 `Builder::on_page_load` 给所有 Webview 注入禁右键脚本。
+- **原因**：用户反馈右键菜单仍未禁掉；根因是远程 AI 页面位于独立子 `Webview`，仅在 Vue 壳层监听 `contextmenu` 不会影响这些远程网页。
+- **影响**：
+  - 主壳层、悬浮展开控件和远程 AI 页面现在都会统一禁用右键菜单。
+  - `pnpm typecheck`、`pnpm lint`、`cargo check` 已通过。
+
+## 2026-05-21 - 隐藏快速切换 AI 列表的原生滚动条
+
+- **改动**：为 `src/pages/ModelSelectionPage.vue` 的 provider 列表滚动区增加 `scrollbar-hidden` 类，并在 `src/styles/app.css` 里统一隐藏滚动条样式。
+- **原因**：用户要求列表继续可以滚动，但不要显示原生滚动条，避免破坏桌面壳层的视觉观感。
+- **影响**：
+  - 快速切换 AI 页面仍可滚动访问完整列表。
+  - 滚动条在 Windows / WebKit 环境下不再可见，界面更干净。
+
+## 2026-05-21 - 修复快速切换 AI 页面列表不可滚动
+
+- **改动**：将 `src/pages/ModelSelectionPage.vue` 从整页垂直居中布局调整为“顶部说明区 + 下方独立滚动列表区”，为 provider 列表补上 `min-h-0` 和 `overflow-y-auto`。
+- **原因**：用户要求快速切换 AI 页面里的 AI 列表可以滚动；原布局在 `AppShell` 的 `overflow-hidden` 下会把长列表后半段裁掉。
+- **影响**：
+  - provider 数量较多时，快速切换 AI 页面现在可以正常滚动访问完整列表。
+  - `pnpm typecheck`、`pnpm lint` 已通过。
+
+## 2026-05-21 - 补齐选择页滚动高度链路
+
+- **改动**：为 `src/components/AppShell.vue` 的 `main` 和 `src/pages/ModelSelectionPage.vue` 的根容器补上 `min-h-0` / `flex-1`，让列表滚动区真正继承到窗口可用高度。
+- **原因**：此前即使列表区本身设置了 `overflow-y-auto`，上游父容器高度没有收敛，仍会导致选择页看起来无法滚动。
+- **影响**：
+  - 快速切换 AI 页面的滚动容器现在能以窗口剩余高度为基准工作。
+  - `pnpm typecheck`、`pnpm lint` 已通过。
+
+## 2026-05-21 - 将壳层高度从 min-h-screen 收敛为 h-screen
+
+- **改动**：把 `src/components/AppShell.vue` 的外层壳层从 `min-h-screen` 调整为 `h-screen`，内部主容器同步改成 `h-full min-h-0`，并让 `main` 也显式保持 `flex-col + min-h-0`。
+- **原因**：选择页无法滚动的更上游原因是壳层本身会被内容撑长，但全局又禁了外层滚动，导致页面内部滚动链路失效。
+- **影响**：
+  - 路由页可用高度现在会严格收敛到窗口高度，内部滚动区更容易稳定工作。
+  - `pnpm typecheck`、`pnpm lint` 已通过。
+
+## 2026-05-21 - 持久化头部收起状态与悬浮展开 icon 位置
+
+- **改动**：为 `preferences` 新增 `headerCollapsed` 与 `collapsedControlLeft` 两个持久化字段；`AppShell` 在头部收起/展开时写入并在启动或回到工作区时恢复；`overlay-control.ts` 在拖动结束后保存悬浮 icon 水平位置，并在下次打开时恢复。
+- **原因**：用户要求头部展开状态和收起 icon 的位移位置都要记忆到本地，重启软件后保持上次状态。
+- **影响**：
+  - 用户再次打开软件时，工作区头部会恢复为上次的展开或收起状态。
+  - 收起态顶部悬浮控件会恢复到上次拖动后的横向位置。
+  - `pnpm typecheck`、`pnpm lint` 已通过。
+
 ## 2026-05-21 - 版本升级到 0.1.1 并重新产出 Windows NSIS 安装包
 
 - **改动**：将 `package.json`、`src-tauri/tauri.conf.json` 与 `src-tauri/Cargo.toml` 的版本号统一从 `0.1.0` 升到 `0.1.1`，并重新执行 `pnpm tauri build --bundles nsis`。

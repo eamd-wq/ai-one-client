@@ -68,9 +68,9 @@ async function selectProvider(providerId: string) {
 </script>
 
 <template>
-  <section class="h-full overflow-y-auto overflow-x-hidden px-6 py-8">
-    <div class="flex min-h-full w-full items-center justify-center">
-      <div class="flex w-full max-w-[760px] flex-col items-center">
+  <section class="flex h-full min-h-0 flex-col overflow-hidden px-6 py-8">
+    <div class="mx-auto flex min-h-0 w-full max-w-[760px] flex-1 flex-col">
+      <div class="flex flex-col items-center text-center">
         <div class="text-center">
           <p class="font-display text-[2.6rem] leading-none tracking-[0.18em] text-[var(--app-text)]">
             {{ t("selection.title") }}
@@ -94,8 +94,10 @@ async function selectProvider(providerId: string) {
             {{ t("common.addCustomChannel") }}
           </button>
         </div>
+      </div>
 
-        <div class="mt-8 flex w-full flex-col gap-3">
+      <div class="scrollbar-hidden mt-4 min-h-0 flex-1 overflow-y-auto overflow-x-hidden pr-1">
+        <div class="flex w-full flex-col gap-3 pb-2 pt-3">
           <ProviderListItem
             v-for="provider in sortedProviders"
             :key="provider.id"

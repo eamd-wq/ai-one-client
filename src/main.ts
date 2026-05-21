@@ -11,6 +11,19 @@ import { useHotkeyStore } from "./stores/hotkey";
 import { usePreferencesStore } from "./stores/preferences";
 
 /**
+ * 在主壳层 Webview 中全局禁用浏览器右键菜单。
+ */
+function disableShellContextMenu() {
+  document.addEventListener(
+    "contextmenu",
+    (event) => {
+      event.preventDefault();
+    },
+    { capture: true },
+  );
+}
+
+/**
  * 初始化 Vue 应用、Pinia、路由与全局桌面能力。
  */
 async function bootstrap() {
@@ -21,6 +34,8 @@ async function bootstrap() {
 
   app.use(pinia);
   app.use(router);
+
+  disableShellContextMenu();
 
   await preferences.init();
   try {

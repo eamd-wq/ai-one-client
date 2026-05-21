@@ -23,6 +23,10 @@ export const usePreferencesStore = defineStore("preferences", () => {
   const shortcut = ref(defaultPreferences.shortcut);
   const lastProviderId = ref<string | null>(defaultPreferences.lastProviderId);
   const customProviders = ref<CustomProviderRecord[]>(defaultPreferences.customProviders);
+  const headerCollapsed = ref(defaultPreferences.headerCollapsed);
+  const collapsedControlLeft = ref<number | null>(
+    defaultPreferences.collapsedControlLeft,
+  );
   const appliedTheme = ref<"light" | "dark">("light");
 
   /**
@@ -48,6 +52,12 @@ export const usePreferencesStore = defineStore("preferences", () => {
     customProviders.value =
       (await appStore.get<CustomProviderRecord[]>("customProviders")) ??
       defaultPreferences.customProviders;
+    headerCollapsed.value =
+      (await appStore.get<boolean>("headerCollapsed")) ??
+      defaultPreferences.headerCollapsed;
+    collapsedControlLeft.value =
+      (await appStore.get<number | null>("collapsedControlLeft")) ??
+      defaultPreferences.collapsedControlLeft;
 
     await syncTheme();
 
@@ -120,6 +130,22 @@ export const usePreferencesStore = defineStore("preferences", () => {
   }
 
   /**
+   * 更新头部收起状态。
+   */
+  async function setHeaderCollapsed(nextCollapsed: boolean) {
+    headerCollapsed.value = nextCollapsed;
+    await appStore.set("headerCollapsed", nextCollapsed);
+  }
+
+  /**
+   * 更新收起态悬浮控件位置。
+   */
+  async function setCollapsedControlLeft(nextLeft: number | null) {
+    collapsedControlLeft.value = nextLeft;
+    await appStore.set("collapsedControlLeft", nextLeft);
+  }
+
+  /**
    * 新增自定义渠道。
    */
   async function addCustomProvider(payload: { name: string; url: string }) {
@@ -158,6 +184,8 @@ export const usePreferencesStore = defineStore("preferences", () => {
     shortcut: shortcut.value,
     lastProviderId: lastProviderId.value,
     customProviders: customProviders.value,
+    headerCollapsed: headerCollapsed.value,
+    collapsedControlLeft: collapsedControlLeft.value,
   }));
 
   return {
@@ -168,6 +196,8 @@ export const usePreferencesStore = defineStore("preferences", () => {
     shortcut,
     lastProviderId,
     customProviders,
+    headerCollapsed,
+    collapsedControlLeft,
     appliedTheme,
     snapshot,
     init,
@@ -177,6 +207,8 @@ export const usePreferencesStore = defineStore("preferences", () => {
     setThemeMode,
     setShortcut,
     setLastProviderId,
+    setHeaderCollapsed,
+    setCollapsedControlLeft,
     addCustomProvider,
     getWorkspaceBounds,
   };

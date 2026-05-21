@@ -41,4 +41,6 @@ export interface PreferencesSnapshot {
   shortcut: string;
   lastProviderId: string | null;
   customProviders: CustomProviderRecord[];
+  headerCollapsed: boolean;
+  collapsedControlLeft: number | null;
 }

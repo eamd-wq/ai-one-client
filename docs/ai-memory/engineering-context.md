@@ -46,6 +46,12 @@
 22. `scripts/run-tauri.mjs` 里补 PATH 时不能写死 `C:\\Users\\admin\\.cargo\\bin` 这类用户目录，必须基于当前用户 home 目录动态拼接，否则换 Windows 账户后会重新出现 `cargo metadata` 启动失败。
 23. 若 `pnpm tauri dev` 报 `Port 1420 is already in use`，优先检查是否有本仓库残留的 `vite` / `tauri dev` / `cargo run` 进程；当前 dev 端口是固定 `1420` 且 `strictPort = true`，所以不会自动换端口。
 24. `src-tauri/tauri.conf.json` 的 `beforeDevCommand` 现在不是直接 `pnpm dev`，而是 `node scripts/run-vite-dev.mjs`；Tauri 在当前仓库根目录执行这个命令，不是以 `src-tauri/` 为相对基准。该脚本会优先复用当前仓库已经运行在 `1420` 上的 Vite dev server，避免二次执行 `pnpm tauri dev` 时因固定端口冲突而直接失败。
+25. 头部收起状态和收起态悬浮展开控件位置现在通过 `app-preferences.json` 持久化，字段分别是 `headerCollapsed` 与 `collapsedControlLeft`；继续调整 `AppShell` 或 `overlay-control.ts` 时要同步维护它们的恢复逻辑。
+26. 模型选择页当前采用“顶部说明区固定 + 下方 provider 列表独立滚动”的布局；继续改 `ModelSelectionPage.vue` 时，必须保留列表区的 `min-h-0 + overflow-y-auto`，否则在快速切换 AI 场景下列表会被父容器裁切。
+27. 选择页滚动是否生效不仅取决于列表容器本身，还取决于 `AppShell` 的 `main` 和页面根节点是否同时具备 `min-h-0` / `flex-1`；缺任一层都会让 `h-full` 拿不到真实窗口高度，最终表现为“看起来有滚动容器但实际不能滚”。
+28. 对这个桌面壳层来说，外层页面高度要优先使用 `h-screen` / `h-full`，不要在承载路由页的壳层继续使用 `min-h-screen`；否则内容会把页面实际高度撑长，但外层又禁了全局滚动，最终会让内部滚动区域失效。
+29. 快速切换 AI 页面的 provider 列表当前使用 `scrollbar-hidden` 样式类隐藏原生滚动条，但仍保留 `overflow-y-auto`；后续若继续调整该区域，避免把滚动条隐藏和滚动能力一起删掉。
+30. “禁用右键菜单”不能只在 Vue 主壳层里监听 `contextmenu`；远程 AI 页面运行在独立子 `Webview` 中，必须额外在 `src-tauri/src/lib.rs` 里通过 `Builder::on_page_load` 给每个 Webview 注入禁右键脚本，悬浮展开控件 `overlay-control.ts` 也要单独拦截。
 
 ## 当前实现结构
 

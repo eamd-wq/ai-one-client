@@ -4,6 +4,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import { RouterView, useRoute, useRouter } from "vue-router";
 
 import { useI18n } from "../lib/i18n";
+import { usePreferencesStore } from "../stores/preferences";
 import { useWorkspaceStore } from "../stores/workspace";
 
 const HEADER_HEIGHT = 60;
@@ -11,6 +12,7 @@ const HEADER_ANIMATION_DURATION = 180;
 
 const route = useRoute();
 const router = useRouter();
+const preferences = usePreferencesStore();
 const workspace = useWorkspaceStore();
 const { t } = useI18n();
 
@@ -52,6 +54,22 @@ async function goToWorkspace() {
 }
 
 /**
+ * 根据持久化状态恢复头部展开/收起形态。
+ */
+async function restoreHeaderState() {
+  if (preferences.headerCollapsed && canCollapseHeader.value) {
+    isHeaderCollapsed.value = true;
+    await workspace.setShellTopOffset(0);
+    await workspace.showCollapsedControl();
+    return;
+  }
+
+  await workspace.hideCollapsedControl();
+  isHeaderCollapsed.value = false;
+  await workspace.setShellTopOffset(HEADER_HEIGHT);
+}
+
+/**
  * 收起头部，并让子 Webview 全屏填充。
  */
 async function collapseHeader() {
@@ -60,6 +78,7 @@ async function collapseHeader() {
   }
 
   isHeaderCollapsed.value = true;
+  await preferences.setHeaderCollapsed(true);
   await animateShellTopOffset(0);
   await workspace.showCollapsedControl();
 }
@@ -74,6 +93,7 @@ async function expandHeader() {
 
   await workspace.hideCollapsedControl();
   isHeaderCollapsed.value = false;
+  await preferences.setHeaderCollapsed(false);
   await nextTick();
   await animateShellTopOffset(HEADER_HEIGHT);
 }
@@ -125,7 +145,7 @@ function stopTopOffsetAnimation() {
 }
 
 onMounted(async () => {
-  await workspace.setShellTopOffset(HEADER_HEIGHT);
+  await restoreHeaderState();
 
   unlistenExpandRequest.value = await listen(
     "collapsed-control:expand-request",
@@ -148,6 +168,17 @@ watch(
   () => [route.path, workspace.currentPane, workspace.activeProviderId] as const,
   async ([nextPath, nextPane, nextProviderId]) => {
     if (
+      !isHeaderCollapsed.value &&
+      preferences.headerCollapsed &&
+      nextPath === "/workspace" &&
+      nextPane === "provider" &&
+      nextProviderId
+    ) {
+      await restoreHeaderState();
+      return;
+    }
+
+    if (
       isHeaderCollapsed.value &&
       (nextPath !== "/workspace" || nextPane !== "provider" || !nextProviderId)
     ) {
@@ -158,13 +189,13 @@ watch(
 </script>
 
 <template>
-  <div class="relative min-h-screen overflow-hidden">
+  <div class="relative h-screen overflow-hidden">
     <div class="pointer-events-none absolute inset-0 bg-[var(--app-surface-gradient)]" />
     <div
       class="pointer-events-none absolute inset-x-0 top-[-6rem] h-72 bg-[radial-gradient(circle,rgba(255,255,255,0.28),transparent_65%)]"
     />
 
-    <div class="relative flex min-h-screen w-full flex-col">
+    <div class="relative flex h-full min-h-0 w-full flex-col">
       <header
         class="overflow-hidden border-[var(--app-border)] bg-[var(--app-bg-elevated)] shadow-[var(--app-shadow)] backdrop-blur-2xl transition-[height,border-color,box-shadow] duration-200"
         :class="isHeaderCollapsed ? 'h-0 border-b border-transparent' : 'h-[60px] border-b'"
@@ -235,7 +266,7 @@ watch(
         </div>
       </header>
 
-      <main class="relative flex-1 overflow-hidden bg-[var(--app-bg-elevated)]">
+      <main class="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-[var(--app-bg-elevated)]">
         <RouterView />
       </main>
     </div>

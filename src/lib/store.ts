@@ -12,6 +12,8 @@ export const defaultPreferences: PreferencesSnapshot = {
   shortcut: "Shift+Alt+W",
   lastProviderId: null,
   customProviders: [],
+  headerCollapsed: false,
+  collapsedControlLeft: null,
 };
 
 /**

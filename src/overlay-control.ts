@@ -1,8 +1,10 @@
 import { emitTo } from "@tauri-apps/api/event";
+import { LazyStore } from "@tauri-apps/plugin-store";
 
 const MOVE_THRESHOLD = 3;
 const CONTROL_SIZE = 34;
 const CONTROL_MARGIN = 8;
+const appStore = new LazyStore("app-preferences.json");
 
 let startX = 0;
 let dragged = false;
@@ -10,6 +12,19 @@ let currentLeft = 0;
 
 const buttonElement = getButtonElement();
 const colorSchemeMedia = globalThis.window.matchMedia("(prefers-color-scheme: dark)");
+
+/**
+ * 在悬浮展开控件 Webview 中禁用右键菜单。
+ */
+function disableOverlayContextMenu() {
+  document.addEventListener(
+    "contextmenu",
+    (event) => {
+      event.preventDefault();
+    },
+    { capture: true },
+  );
+}
 
 /**
  * 获取悬浮控件按钮实例。
@@ -28,6 +43,13 @@ function getButtonElement() {
  */
 async function requestExpand() {
   await emitTo({ kind: "Webview", label: "main" }, "collapsed-control:expand-request");
+}
+
+/**
+ * 持久化当前悬浮控件的水平位置。
+ */
+async function persistControlLeft() {
+  await appStore.set("collapsedControlLeft", currentLeft);
 }
 
 /**
@@ -67,6 +89,8 @@ function handlePointerUp(event: PointerEvent) {
   if (buttonElement.hasPointerCapture(event.pointerId)) {
     buttonElement.releasePointerCapture(event.pointerId);
   }
+
+  void persistControlLeft();
 }
 
 /**
@@ -107,6 +131,16 @@ function applyControlLeft(nextLeft: number) {
 function setupOverlayLayout() {
   const centeredLeft = Math.round((globalThis.window.innerWidth - CONTROL_SIZE) / 2);
   applyControlLeft(currentLeft || centeredLeft);
+}
+
+/**
+ * 从持久化存储恢复悬浮控件位置。
+ */
+async function restoreControlLeft() {
+  await appStore.init();
+  const savedLeft = await appStore.get<number | null>("collapsedControlLeft");
+  currentLeft = savedLeft ?? 0;
+  setupOverlayLayout();
 }
 
 /**
@@ -232,5 +266,6 @@ if (secondaryLine) {
   secondaryLine.style.opacity = "0.68";
 }
 
+disableOverlayContextMenu();
 applyThemePalette();
-setupOverlayLayout();
+void restoreControlLeft();

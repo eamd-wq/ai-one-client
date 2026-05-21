@@ -1,6 +1,30 @@
 use serde::Deserialize;
 use tauri::Manager;
 
+const DISABLE_CONTEXT_MENU_SCRIPT: &str = r#"
+  (() => {
+    if (window.__AI_CLIENT_CONTEXT_MENU_DISABLED__) {
+      return;
+    }
+
+    Object.defineProperty(window, "__AI_CLIENT_CONTEXT_MENU_DISABLED__", {
+      value: true,
+      configurable: false,
+      enumerable: false,
+      writable: false,
+    });
+
+    const disableContextMenu = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      return false;
+    };
+
+    window.addEventListener("contextmenu", disableContextMenu, true);
+    document.addEventListener("contextmenu", disableContextMenu, true);
+  })();
+"#;
+
 /**
  * 主题同步请求体。
  */
@@ -31,6 +55,13 @@ fn build_theme_script(theme: &str) -> String {
 }
 
 /**
+ * 向指定 Webview 注入右键菜单禁用脚本。
+ */
+fn disable_context_menu_for_webview<R: tauri::Runtime>(webview: &tauri::Webview<R>) {
+  let _ = webview.eval(DISABLE_CONTEXT_MENU_SCRIPT);
+}
+
+/**
  * 将主题脚本注入到指定子 Webview。
  */
 #[tauri::command]
@@ -50,6 +81,11 @@ fn apply_theme_to_webview<R: tauri::Runtime>(
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   tauri::Builder::default()
+    .on_page_load(|webview, payload| {
+      if matches!(payload.event(), tauri::webview::PageLoadEvent::Started) {
+        disable_context_menu_for_webview(webview);
+      }
+    })
     .plugin(tauri_plugin_opener::init())
     .plugin(tauri_plugin_store::Builder::default().build())
     .plugin(tauri_plugin_global_shortcut::Builder::new().build())
