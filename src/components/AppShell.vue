@@ -1,28 +1,26 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
+import { listen } from "@tauri-apps/api/event";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { RouterView, useRoute, useRouter } from "vue-router";
 
 import { useWorkspaceStore } from "../stores/workspace";
 
 const HEADER_HEIGHT = 60;
 const HEADER_ANIMATION_DURATION = 180;
-const COLLAPSED_INDICATOR_SIZE = 34;
-const COLLAPSED_INDICATOR_MARGIN = 8;
 
 const route = useRoute();
 const router = useRouter();
 const workspace = useWorkspaceStore();
 
-const shellRootRef = ref<globalThis.HTMLElement | null>(null);
 const isHeaderCollapsed = ref(false);
-const indicatorLeft = ref(COLLAPSED_INDICATOR_MARGIN);
-const dragStartX = ref(0);
-const indicatorStartLeft = ref(0);
-const isDraggingIndicator = ref(false);
-const didDragIndicator = ref(false);
 const topOffsetAnimationFrame = ref<number | null>(null);
+const unlistenExpandRequest = ref<(() => void) | null>(null);
+const unlistenDragRequest = ref<(() => void) | null>(null);
 
 const activeProviderName = computed(() => workspace.activeProvider?.name ?? "选择 AI");
+const canCollapseHeader = computed(
+  () => route.path === "/workspace" && workspace.currentPane === "provider",
+);
 
 /**
  * 回到 AI 选择页。
@@ -51,18 +49,27 @@ async function goToWorkspace() {
 }
 
 /**
- * 收起头部，并同步内容区顶部偏移。
+ * 收起头部，并让子 Webview 全屏填充。
  */
 async function collapseHeader() {
+  if (!canCollapseHeader.value || isHeaderCollapsed.value) {
+    return;
+  }
+
   isHeaderCollapsed.value = true;
-  clampIndicatorLeft(indicatorLeft.value);
   await animateShellTopOffset(0);
+  await workspace.showCollapsedControl();
 }
 
 /**
- * 展开头部，并同步内容区顶部偏移。
+ * 展开头部，并隐藏悬浮展开控件。
  */
 async function expandHeader() {
+  if (!isHeaderCollapsed.value) {
+    return;
+  }
+
+  await workspace.hideCollapsedControl();
   isHeaderCollapsed.value = false;
   await nextTick();
   await animateShellTopOffset(HEADER_HEIGHT);
@@ -114,98 +121,52 @@ function stopTopOffsetAnimation() {
   topOffsetAnimationFrame.value = null;
 }
 
-/**
- * 限制收起图标仅在容器顶部水平移动。
- */
-function clampIndicatorLeft(nextLeft: number) {
-  const root = shellRootRef.value;
-  if (!root) {
-    indicatorLeft.value = Math.max(nextLeft, COLLAPSED_INDICATOR_MARGIN);
-    return;
-  }
-
-  const maxLeft = Math.max(
-    root.clientWidth - COLLAPSED_INDICATOR_SIZE - COLLAPSED_INDICATOR_MARGIN,
-    COLLAPSED_INDICATOR_MARGIN,
-  );
-
-  indicatorLeft.value = Math.min(
-    Math.max(nextLeft, COLLAPSED_INDICATOR_MARGIN),
-    maxLeft,
-  );
-}
-
-/**
- * 开始拖动收起图标。
- */
-function startIndicatorDrag(event: globalThis.PointerEvent) {
-  dragStartX.value = event.clientX;
-  indicatorStartLeft.value = indicatorLeft.value;
-  isDraggingIndicator.value = true;
-  didDragIndicator.value = false;
-
-  globalThis.window.addEventListener("pointermove", handleIndicatorDrag);
-  globalThis.window.addEventListener("pointerup", stopIndicatorDrag);
-}
-
-/**
- * 处理收起图标拖动过程。
- */
-function handleIndicatorDrag(event: globalThis.PointerEvent) {
-  if (!isDraggingIndicator.value) {
-    return;
-  }
-
-  const deltaX = event.clientX - dragStartX.value;
-  if (Math.abs(deltaX) > 3) {
-    didDragIndicator.value = true;
-  }
-
-  clampIndicatorLeft(indicatorStartLeft.value + deltaX);
-}
-
-/**
- * 结束收起图标拖动。
- */
-function stopIndicatorDrag() {
-  isDraggingIndicator.value = false;
-  globalThis.window.removeEventListener("pointermove", handleIndicatorDrag);
-  globalThis.window.removeEventListener("pointerup", stopIndicatorDrag);
-
-  globalThis.window.setTimeout(() => {
-    didDragIndicator.value = false;
-  }, 0);
-}
-
-/**
- * 点击收起图标时恢复展开状态。
- */
-async function handleCollapsedIndicatorClick() {
-  if (didDragIndicator.value) {
-    return;
-  }
-
-  await expandHeader();
-}
-
-/**
- * 根据当前容器宽度修正图标位置。
- */
-function syncIndicatorBounds() {
-  clampIndicatorLeft(indicatorLeft.value);
-}
-
 onMounted(async () => {
   await workspace.setShellTopOffset(HEADER_HEIGHT);
-  globalThis.window.addEventListener("resize", syncIndicatorBounds);
+
+  unlistenExpandRequest.value = await listen(
+    "collapsed-control:expand-request",
+    async () => {
+      await expandHeader();
+    },
+  );
+
+  unlistenDragRequest.value = await listen<{ deltaX: number }>(
+    "collapsed-control:drag",
+    async (event) => {
+      if (!isHeaderCollapsed.value) {
+        return;
+      }
+
+      await workspace.moveCollapsedControlBy(event.payload.deltaX);
+    },
+  );
 });
 
 onBeforeUnmount(() => {
   stopTopOffsetAnimation();
-  globalThis.window.removeEventListener("resize", syncIndicatorBounds);
-  globalThis.window.removeEventListener("pointermove", handleIndicatorDrag);
-  globalThis.window.removeEventListener("pointerup", stopIndicatorDrag);
+  void workspace.hideCollapsedControl();
+
+  if (unlistenExpandRequest.value) {
+    void unlistenExpandRequest.value();
+  }
+
+  if (unlistenDragRequest.value) {
+    void unlistenDragRequest.value();
+  }
 });
+
+watch(
+  () => [route.path, workspace.currentPane, workspace.activeProviderId] as const,
+  async ([nextPath, nextPane, nextProviderId]) => {
+    if (
+      isHeaderCollapsed.value &&
+      (nextPath !== "/workspace" || nextPane !== "provider" || !nextProviderId)
+    ) {
+      await expandHeader();
+    }
+  },
+);
 </script>
 
 <template>
@@ -215,34 +176,17 @@ onBeforeUnmount(() => {
       class="pointer-events-none absolute inset-x-0 top-[-6rem] h-72 bg-[radial-gradient(circle,rgba(255,255,255,0.28),transparent_65%)]"
     />
 
-    <div
-      ref="shellRootRef"
-      class="relative mx-auto flex min-h-screen max-w-[1600px] flex-col"
-    >
-      <button
-        class="absolute top-[8px] z-20 flex h-[34px] w-[34px] items-center justify-center rounded-full border border-[var(--app-border)] bg-[rgba(255,250,242,0.52)] text-[11px] font-semibold tracking-[0.08em] text-[var(--app-text-soft)] shadow-[0_10px_30px_rgba(0,0,0,0.12)] backdrop-blur-xl transition-all duration-200 hover:border-[var(--app-accent)] hover:bg-[var(--app-accent-soft)] hover:text-[var(--app-text)]"
-        :class="
-          isHeaderCollapsed
-            ? 'pointer-events-auto translate-y-0 scale-100 opacity-100'
-            : 'pointer-events-none -translate-y-2 scale-90 opacity-0'
-        "
-        :style="{ left: `${indicatorLeft}px` }"
-        @pointerdown.prevent="startIndicatorDrag"
-        @click="handleCollapsedIndicatorClick"
-      >
-        AI
-      </button>
-
+    <div class="relative mx-auto flex min-h-screen max-w-[1600px] flex-col">
       <header
         class="overflow-hidden border-[var(--app-border)] bg-[var(--app-bg-elevated)] shadow-[var(--app-shadow)] backdrop-blur-2xl transition-[height,border-color,box-shadow] duration-200"
         :class="isHeaderCollapsed ? 'h-0 border-b border-transparent' : 'h-[60px] border-b'"
       >
         <div
-          class="flex h-[60px] items-center justify-between gap-4 pr-4 transition duration-200"
+          class="relative flex h-[60px] items-center gap-4 pr-4 transition duration-200"
           :class="isHeaderCollapsed ? 'pointer-events-none -translate-y-3 opacity-0' : 'translate-y-0 opacity-100'"
         >
           <button
-            class="group flex h-full min-w-0 items-center gap-2 px-4 py-2 text-left transition hover:bg-[var(--app-accent-soft)]"
+            class="group flex h-full max-w-[320px] shrink-0 items-center gap-2 px-4 py-2 text-left transition hover:bg-[var(--app-accent-soft)]"
             @click="goToWorkspace"
           >
             <div
@@ -264,7 +208,19 @@ onBeforeUnmount(() => {
             </div>
           </button>
 
-          <nav class="flex items-center gap-2">
+          <button
+            v-if="canCollapseHeader"
+            class="absolute left-1/2 top-1/2 flex h-[30px] w-[30px] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-[var(--app-border)] bg-[rgba(255,250,242,0.44)] text-[var(--app-text-soft)] transition hover:border-[var(--app-accent)] hover:bg-[var(--app-accent-soft)] hover:text-[var(--app-text)]"
+            aria-label="收起头部"
+            @click="collapseHeader"
+          >
+            <span class="relative block h-[10px] w-[12px]">
+              <span class="absolute left-0 top-[2px] h-[1.5px] w-full rounded-full bg-current" />
+              <span class="absolute left-[2px] top-[6px] h-[1.5px] w-[8px] rounded-full bg-current opacity-65" />
+            </span>
+          </button>
+
+          <nav class="ml-auto flex items-center gap-2">
             <button
               class="rounded-full px-3.5 py-2 text-sm transition"
               :class="
@@ -286,12 +242,6 @@ onBeforeUnmount(() => {
               @click="goToSettings"
             >
               设置
-            </button>
-            <button
-              class="rounded-full border border-[var(--app-border)] px-3.5 py-2 text-sm text-[var(--app-text-soft)] transition hover:bg-[var(--app-accent-soft)] hover:text-[var(--app-text)]"
-              @click="collapseHeader"
-            >
-              收起
             </button>
           </nav>
         </div>

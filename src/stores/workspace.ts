@@ -12,15 +12,19 @@ const DEFAULT_SHELL_TOP_OFFSET = 60;
 const SHELL_SIDE_PADDING = 0;
 const SHELL_BOTTOM_PADDING = 0;
 const CONTENT_INSET = 0;
+const COLLAPSED_CONTROL_LABEL = "overlay:collapsed-control";
+const COLLAPSED_CONTROL_SIZE = 34;
+const COLLAPSED_CONTROL_MARGIN = 8;
 
 /**
- * 工作区 store，负责远程子 Webview 的创建、切换、展示与隐藏。
+ * 工作区 store，负责远程子 Webview 的创建、切换、显示与隐藏。
  */
 export const useWorkspaceStore = defineStore("workspace", () => {
   const activeProviderId = ref<string | null>(null);
   const currentPane = ref<"select" | "settings" | "provider">("select");
   const createdWebviews = ref<string[]>([]);
   const shellTopOffset = ref(DEFAULT_SHELL_TOP_OFFSET);
+  const collapsedControlLeft = ref<number | null>(null);
 
   /**
    * 计算子 Webview 的布局矩形。
@@ -41,7 +45,42 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   }
 
   /**
-   * 更新壳层顶部占位高度，并同步刷新活动 Webview。
+   * 约束收起态展开控件的水平位置。
+   */
+  async function clampCollapsedControlLeft(nextLeft: number) {
+    const window = getCurrentWindow();
+    const size = await window.innerSize();
+    const maxLeft = Math.max(
+      size.width - COLLAPSED_CONTROL_SIZE - COLLAPSED_CONTROL_MARGIN,
+      COLLAPSED_CONTROL_MARGIN,
+    );
+
+    return Math.min(Math.max(nextLeft, COLLAPSED_CONTROL_MARGIN), maxLeft);
+  }
+
+  /**
+   * 计算收起态展开控件的布局矩形。
+   */
+  async function getCollapsedControlRect() {
+    const window = getCurrentWindow();
+    const size = await window.innerSize();
+    const defaultLeft = Math.round((size.width - COLLAPSED_CONTROL_SIZE) / 2);
+    const left = await clampCollapsedControlLeft(
+      collapsedControlLeft.value ?? defaultLeft,
+    );
+
+    collapsedControlLeft.value = left;
+
+    return {
+      x: left,
+      y: COLLAPSED_CONTROL_MARGIN,
+      width: COLLAPSED_CONTROL_SIZE,
+      height: COLLAPSED_CONTROL_SIZE,
+    };
+  }
+
+  /**
+   * 更新壳层顶部占位高度，并同步刷新原生 Webview。
    */
   async function setShellTopOffset(nextOffset: number) {
     shellTopOffset.value = nextOffset;
@@ -60,6 +99,13 @@ export const useWorkspaceStore = defineStore("workspace", () => {
    */
   async function getExistingWebview(providerId: string) {
     return Webview.getByLabel(toWebviewLabel(providerId));
+  }
+
+  /**
+   * 获取收起态展开控件 Webview。
+   */
+  async function getCollapsedControlWebview() {
+    return Webview.getByLabel(COLLAPSED_CONTROL_LABEL);
   }
 
   /**
@@ -123,6 +169,48 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   }
 
   /**
+   * 创建或复用收起态展开控件 Webview。
+   */
+  async function ensureCollapsedControlWebview() {
+    const existing = await getCollapsedControlWebview();
+    if (existing) {
+      return existing;
+    }
+
+    const rect = await getCollapsedControlRect();
+    const window = getCurrentWindow();
+
+    const view = new Webview(window, COLLAPSED_CONTROL_LABEL, {
+      url: "/overlay-control.html",
+      x: rect.x,
+      y: rect.y,
+      width: rect.width,
+      height: rect.height,
+      focus: false,
+      transparent: true,
+      zoomHotkeysEnabled: false,
+      dragDropEnabled: false,
+    });
+
+    await new Promise<void>((resolve, reject) => {
+      void view.once("tauri://created", async () => {
+        try {
+          await view.setAutoResize(false);
+          resolve();
+        } catch (error) {
+          reject(error);
+        }
+      });
+
+      void view.once("tauri://error", (event) => {
+        reject(new Error(String(event.payload)));
+      });
+    });
+
+    return view;
+  }
+
+  /**
    * 展示指定 provider 页面。
    */
   async function openProvider(providerId: string) {
@@ -154,6 +242,39 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   async function showSettings() {
     await hideAllWebviews();
     currentPane.value = "settings";
+  }
+
+  /**
+   * 显示收起态展开控件。
+   */
+  async function showCollapsedControl() {
+    const view = await ensureCollapsedControlWebview();
+
+    await refreshCollapsedControlBounds();
+    await view.show();
+  }
+
+  /**
+   * 隐藏收起态展开控件。
+   */
+  async function hideCollapsedControl() {
+    const view = await getCollapsedControlWebview();
+    if (!view) {
+      return;
+    }
+
+    await view.hide();
+  }
+
+  /**
+   * 按拖动增量更新收起态展开控件位置。
+   */
+  async function moveCollapsedControlBy(deltaX: number) {
+    collapsedControlLeft.value = await clampCollapsedControlLeft(
+      (collapsedControlLeft.value ?? COLLAPSED_CONTROL_MARGIN) + deltaX,
+    );
+
+    await refreshCollapsedControlBounds();
   }
 
   /**
@@ -207,6 +328,28 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     await view.setSize(new PhysicalSize(rect.width, rect.height));
   }
 
+  /**
+   * 刷新收起态展开控件的布局。
+   */
+  async function refreshCollapsedControlBounds() {
+    const view = await getCollapsedControlWebview();
+    if (!view) {
+      return;
+    }
+
+    const rect = await getCollapsedControlRect();
+    await view.setPosition(new PhysicalPosition(rect.x, rect.y));
+    await view.setSize(new PhysicalSize(rect.width, rect.height));
+  }
+
+  /**
+   * 刷新工作区内全部原生 Webview 的布局。
+   */
+  async function refreshWebviewBounds() {
+    await refreshActiveWebviewBounds();
+    await refreshCollapsedControlBounds();
+  }
+
   const activeProvider = computed(() => {
     const preferences = usePreferencesStore();
     if (!activeProviderId.value) {
@@ -227,7 +370,12 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     showSettings,
     openInitialView,
     refreshActiveWebviewBounds,
+    refreshCollapsedControlBounds,
+    refreshWebviewBounds,
     syncThemeToWebviews,
     setShellTopOffset,
+    showCollapsedControl,
+    hideCollapsedControl,
+    moveCollapsedControlBy,
   };
 });

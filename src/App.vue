@@ -24,7 +24,7 @@ onMounted(async () => {
   const currentWindow = windowApi.getCurrentWindow();
 
   await currentWindow.onResized(async () => {
-    await workspace.refreshActiveWebviewBounds();
+    await workspace.refreshWebviewBounds();
   });
 });
 </script>

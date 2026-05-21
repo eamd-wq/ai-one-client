@@ -1,5 +1,6 @@
 import vue from "@vitejs/plugin-vue";
 import UnoCSS from "@unocss/vite";
+import { resolve } from "node:path";
 import { defineConfig } from "vite";
 
 // @ts-expect-error process is a nodejs global
@@ -11,6 +12,14 @@ const host = process.env.TAURI_DEV_HOST;
 export default defineConfig({
   plugins: [vue(), UnoCSS()],
   clearScreen: false,
+  build: {
+    rollupOptions: {
+      input: {
+        main: resolve(__dirname, "index.html"),
+        overlayControl: resolve(__dirname, "overlay-control.html"),
+      },
+    },
+  },
   server: {
     port: 1420,
     strictPort: true,
