@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { RouterView, useRoute, useRouter } from "vue-router";
 
+import { useI18n } from "../lib/i18n";
 import { useWorkspaceStore } from "../stores/workspace";
 
 const HEADER_HEIGHT = 60;
@@ -11,12 +12,15 @@ const HEADER_ANIMATION_DURATION = 180;
 const route = useRoute();
 const router = useRouter();
 const workspace = useWorkspaceStore();
+const { t } = useI18n();
 
 const isHeaderCollapsed = ref(false);
 const topOffsetAnimationFrame = ref<number | null>(null);
 const unlistenExpandRequest = ref<(() => void) | null>(null);
 
-const activeProviderName = computed(() => workspace.activeProvider?.name ?? "选择 AI");
+const activeProviderName = computed(
+  () => workspace.activeProvider?.name ?? t("appShell.currentAiFallback"),
+);
 const canCollapseHeader = computed(
   () => route.path === "/workspace" && workspace.currentPane === "provider",
 );
@@ -180,10 +184,10 @@ watch(
             </div>
             <div class="min-w-0">
               <div class="font-display text-[1.05rem] leading-none tracking-[0.14em] text-[var(--app-text)]">
-                AIClientCore
+                {{ t("common.appName") }}
               </div>
               <div class="mt-1 flex min-w-0 items-center gap-2 text-xs text-[var(--app-text-soft)]">
-                <span>当前 AI</span>
+                <span>{{ t("common.currentAi") }}</span>
                 <span class="h-1 w-1 rounded-full bg-[var(--app-text-soft)]/60" />
                 <span class="truncate font-medium text-[var(--app-text)]">
                   {{ activeProviderName }}
@@ -195,7 +199,7 @@ watch(
           <button
             v-if="canCollapseHeader"
             class="absolute left-1/2 top-1/2 flex h-[30px] w-[30px] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-[var(--app-border)] bg-[rgba(255,250,242,0.44)] text-[var(--app-text-soft)] transition hover:border-[var(--app-accent)] hover:bg-[var(--app-accent-soft)] hover:text-[var(--app-text)]"
-            aria-label="收起头部"
+            :aria-label="t('common.collapseHeader')"
             @click="collapseHeader"
           >
             <span class="relative block h-[10px] w-[12px]">
@@ -214,7 +218,7 @@ watch(
               "
               @click="goToSelection"
             >
-              快速切换 AI
+              {{ t("common.quickSwitchAi") }}
             </button>
             <button
               class="rounded-full px-3.5 py-2 text-sm transition"
@@ -225,7 +229,7 @@ watch(
               "
               @click="goToSettings"
             >
-              设置
+              {{ t("common.settings") }}
             </button>
           </nav>
         </div>

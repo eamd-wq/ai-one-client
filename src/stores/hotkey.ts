@@ -8,6 +8,7 @@ import {
 import { defineStore } from "pinia";
 import { ref } from "vue";
 
+import { translate } from "../lib/i18n";
 import { usePreferencesStore } from "./preferences";
 
 /**
@@ -81,7 +82,9 @@ export const useHotkeyStore = defineStore("hotkey", () => {
 
     const alreadyRegistered = await isRegistered(nextShortcut);
     if (alreadyRegistered) {
-      throw new Error("该快捷键已被当前应用注册。");
+      throw new Error(
+        translate(preferences.language, "hotkey.alreadyRegistered"),
+      );
     }
 
     const previousShortcut = activeShortcut.value;

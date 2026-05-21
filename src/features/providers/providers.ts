@@ -1,92 +1,133 @@
+import { translate } from "../../lib/i18n";
 import type {
+  AppLanguage,
   CustomProviderRecord,
   ProviderCamp,
   ProviderDefinition,
 } from "../../types/provider";
 
-const builtinProviders: ProviderDefinition[] = [
-  createBuiltinProvider({
+type BuiltinProviderSeed = {
+  id: string;
+  camp: ProviderCamp;
+  url: string;
+  name: Record<AppLanguage, string>;
+  descriptionKey: string;
+};
+
+const builtinProviders: BuiltinProviderSeed[] = [
+  {
     id: "deepseek",
-    name: "DeepSeek",
     camp: "domestic",
     url: "https://chat.deepseek.com/",
-    description: "深度推理优先，适合技术问答与结构化输出。",
-  }),
-  createBuiltinProvider({
+    name: {
+      "zh-CN": "DeepSeek",
+      "en-US": "DeepSeek",
+    },
+    descriptionKey: "providers.deepseekDescription",
+  },
+  {
     id: "doubao",
-    name: "豆包",
     camp: "domestic",
     url: "https://www.doubao.com/chat/",
-    description: "字节系通用助手，适合日常对话与写作草稿。",
-  }),
-  createBuiltinProvider({
+    name: {
+      "zh-CN": "豆包",
+      "en-US": "Doubao",
+    },
+    descriptionKey: "providers.doubaoDescription",
+  },
+  {
     id: "tongyi",
-    name: "通义千问",
     camp: "domestic",
     url: "https://tongyi.aliyun.com/qianwen/",
-    description: "阿里系模型入口，适合通用办公与代码协作。",
-  }),
-  createBuiltinProvider({
+    name: {
+      "zh-CN": "通义千问",
+      "en-US": "Tongyi Qianwen",
+    },
+    descriptionKey: "providers.tongyiDescription",
+  },
+  {
     id: "yiyan",
-    name: "文心一言",
     camp: "domestic",
     url: "https://yiyan.baidu.com/",
-    description: "百度系会话入口，适合中文场景与知识问答。",
-  }),
-  createBuiltinProvider({
+    name: {
+      "zh-CN": "文心一言",
+      "en-US": "ERNIE Bot",
+    },
+    descriptionKey: "providers.yiyanDescription",
+  },
+  {
     id: "kimi",
-    name: "Kimi",
     camp: "domestic",
     url: "https://kimi.moonshot.cn/",
-    description: "长上下文优势明显，适合读文档与长内容整理。",
-  }),
-  createBuiltinProvider({
+    name: {
+      "zh-CN": "Kimi",
+      "en-US": "Kimi",
+    },
+    descriptionKey: "providers.kimiDescription",
+  },
+  {
     id: "chatgpt",
-    name: "ChatGPT",
     camp: "international",
     url: "https://chatgpt.com/",
-    description: "国际通用首选，适合创作、推理与代码协作。",
-  }),
-  createBuiltinProvider({
+    name: {
+      "zh-CN": "ChatGPT",
+      "en-US": "ChatGPT",
+    },
+    descriptionKey: "providers.chatgptDescription",
+  },
+  {
     id: "gemini",
-    name: "Gemini",
     camp: "international",
     url: "https://gemini.google.com/",
-    description: "Google 生态连接强，适合搜索协作与多模态场景。",
-  }),
-  createBuiltinProvider({
+    name: {
+      "zh-CN": "Gemini",
+      "en-US": "Gemini",
+    },
+    descriptionKey: "providers.geminiDescription",
+  },
+  {
     id: "claude",
-    name: "Claude",
     camp: "international",
     url: "https://claude.ai/",
-    description: "长文本与写作体验突出，适合分析与润色。",
-  }),
-  createBuiltinProvider({
+    name: {
+      "zh-CN": "Claude",
+      "en-US": "Claude",
+    },
+    descriptionKey: "providers.claudeDescription",
+  },
+  {
     id: "copilot",
-    name: "Copilot",
     camp: "international",
     url: "https://copilot.microsoft.com/",
-    description: "微软生态协同能力强，适合办公与搜索融合。",
-  }),
-  createBuiltinProvider({
+    name: {
+      "zh-CN": "Copilot",
+      "en-US": "Copilot",
+    },
+    descriptionKey: "providers.copilotDescription",
+  },
+  {
     id: "perplexity",
-    name: "Perplexity",
     camp: "international",
     url: "https://www.perplexity.ai/",
-    description: "偏检索与来源整合，适合快速查证。",
-  }),
+    name: {
+      "zh-CN": "Perplexity",
+      "en-US": "Perplexity",
+    },
+    descriptionKey: "providers.perplexityDescription",
+  },
 ];
-
-/**
- * 内置 AI 提供方列表。
- */
-export const providers = builtinProviders;
 
 /**
  * 获取完整 provider 目录。
  */
-export function getProviderCatalog(customProviders: CustomProviderRecord[]) {
-  return [...builtinProviders, ...customProviders.map(createCustomProvider)];
+export function getProviderCatalog(
+  language: AppLanguage,
+  customProviders: CustomProviderRecord[],
+) {
+  return [
+    ...builtinProviders.map((provider) => createBuiltinProvider(language, provider)),
+    ...customProviders.map((provider) => createCustomProvider(language, provider)),
+  ];
 }
 
 /**
@@ -94,9 +135,13 @@ export function getProviderCatalog(customProviders: CustomProviderRecord[]) {
  */
 export function getProviderById(
   providerId: string,
+  language: AppLanguage,
   customProviders: CustomProviderRecord[],
 ) {
-  return getProviderCatalog(customProviders).find((item) => item.id === providerId) ?? null;
+  return (
+    getProviderCatalog(language, customProviders).find((item) => item.id === providerId) ??
+    null
+  );
 }
 
 /**
@@ -137,12 +182,12 @@ export function getProviderIconUrl(url: string) {
 /**
  * 生成自定义渠道描述。
  */
-export function getCustomProviderDescription(url: string) {
+export function getCustomProviderDescription(language: AppLanguage, url: string) {
   try {
     const { host } = new URL(url);
-    return `自定义渠道 · ${host}`;
+    return translate(language, "providers.customDescriptionWithHost", { host });
   } catch {
-    return "自定义渠道";
+    return translate(language, "providers.customDescriptionFallback");
   }
 }
 
@@ -150,10 +195,15 @@ export function getCustomProviderDescription(url: string) {
  * 创建内置 provider 定义。
  */
 function createBuiltinProvider(
-  provider: Omit<ProviderDefinition, "iconUrl">,
+  language: AppLanguage,
+  provider: BuiltinProviderSeed,
 ): ProviderDefinition {
   return {
-    ...provider,
+    id: provider.id,
+    name: provider.name[language],
+    camp: provider.camp,
+    url: provider.url,
+    description: translate(language, provider.descriptionKey),
     iconUrl: getProviderIconUrl(provider.url),
   };
 }
@@ -161,13 +211,16 @@ function createBuiltinProvider(
 /**
  * 将持久化的自定义渠道转换为 provider。
  */
-function createCustomProvider(provider: CustomProviderRecord): ProviderDefinition {
+function createCustomProvider(
+  language: AppLanguage,
+  provider: CustomProviderRecord,
+): ProviderDefinition {
   return {
     id: provider.id,
     name: provider.name,
     camp: "custom",
     url: provider.url,
-    description: getCustomProviderDescription(provider.url),
+    description: getCustomProviderDescription(language, provider.url),
     iconUrl: getProviderIconUrl(provider.url),
     isCustom: true,
   };

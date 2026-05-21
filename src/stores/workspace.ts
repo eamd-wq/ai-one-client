@@ -108,7 +108,11 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     }
 
     const preferences = usePreferencesStore();
-    const provider = getProviderById(providerId, preferences.customProviders);
+    const provider = getProviderById(
+      providerId,
+      preferences.language,
+      preferences.customProviders,
+    );
     if (!provider) {
       throw new Error(`Provider not found: ${providerId}`);
     }
@@ -323,7 +327,11 @@ export const useWorkspaceStore = defineStore("workspace", () => {
       return null;
     }
 
-    return getProviderById(activeProviderId.value, preferences.customProviders);
+    return getProviderById(
+      activeProviderId.value,
+      preferences.language,
+      preferences.customProviders,
+    );
   });
 
   return {

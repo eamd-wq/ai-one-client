@@ -2,6 +2,7 @@
  * AI 阵营类型。
  */
 export type ProviderCamp = "domestic" | "international" | "custom";
+export type AppLanguage = "zh-CN" | "en-US";
 
 /**
  * 主题模式。
@@ -34,6 +35,7 @@ export interface ProviderDefinition {
  * 偏好设置持久化结构。
  */
 export interface PreferencesSnapshot {
+  language: AppLanguage;
   camp: ProviderCamp;
   themeMode: ThemeMode;
   shortcut: string;

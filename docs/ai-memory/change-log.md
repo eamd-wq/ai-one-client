@@ -19,6 +19,15 @@
   - 代码层面对 macOS 的结构性兼容性已补齐，但 `.app` / `.dmg` 仍需在 Mac 机器上实际打包。
   - Windows 安装包仍可正常生成，产物路径保持不变。
 
+## 2026-05-21 - 增加中英双语 UI 与双语 README
+
+- **改动**：新增 `src/lib/i18n.ts`，把设置页、模型选择页、工作区空态、头部导航、渠道弹框、provider 描述和快捷键提示统一改为 `zh-CN / en-US` 双语；语言选择项加入设置页并持久化到 `preferences.language`；同时将 `README.md` 改写为中英双语版本。
+- **原因**：用户要求软件和文档同时支持中文与英文，并且软件内可以直接切换语言。
+- **影响**：
+  - UI 文案现在会随语言设置实时切换，且重启后保持上次选择。
+  - 内置 provider 的名称与描述也会随语言变化。
+  - `pnpm typecheck`、`pnpm lint`、`pnpm build` 已全部通过。
+
 ## 2026-05-21 - 完成 Windows NSIS 安装包打包闭环
 
 - **改动**：确认并复用本机已安装的 NSIS，完成 `pnpm tauri build --bundles nsis` release 打包，成功生成 `AIClientCore_0.1.0_x64-setup.exe`。

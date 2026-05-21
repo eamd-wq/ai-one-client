@@ -1,17 +1,19 @@
 <script setup lang="ts">
 import { ref } from "vue";
 
+import { useI18n } from "../lib/i18n";
 import type { ProviderDefinition } from "../types/provider";
 
 defineProps<{
   provider: ProviderDefinition;
 }>();
 
-const emit = defineEmits<{
+defineEmits<{
   select: [];
 }>();
 
 const iconLoadFailed = ref(false);
+const { tCampBadge } = useI18n();
 
 /**
  * 记录图标加载失败，失败后留空展示。
@@ -24,14 +26,14 @@ function markIconFailed() {
 <template>
   <button
     class="group grid w-full grid-cols-[auto_1fr_auto] items-center gap-4 rounded-[20px] border border-[var(--app-border)] bg-[var(--app-bg-strong)] px-5 py-4 text-left transition duration-300 hover:-translate-y-[1px] hover:border-[var(--app-accent)] hover:bg-[var(--app-accent-soft)]"
-    @click="emit('select')"
+    @click="$emit('select')"
   >
-    <div class="flex h-12 w-12 items-center justify-center rounded-[16px] border border-[var(--app-border)] bg-[var(--app-bg-elevated)] shadow-sm overflow-hidden">
+    <div class="flex h-12 w-12 overflow-hidden rounded-[16px] border border-[var(--app-border)] bg-[var(--app-bg-elevated)] shadow-sm">
       <img
         v-if="provider.iconUrl && !iconLoadFailed"
         :src="provider.iconUrl"
         :alt="provider.name"
-        class="h-7 w-7 object-contain"
+        class="m-auto h-7 w-7 object-contain"
         referrerpolicy="no-referrer"
         @error="markIconFailed"
       >
@@ -52,7 +54,7 @@ function markIconFailed() {
                 : 'bg-[rgba(95,125,88,0.12)] text-[rgb(95,125,88)]'
           "
         >
-          {{ provider.camp === "domestic" ? "国产" : provider.camp === "international" ? "国际" : "自定义" }}
+          {{ tCampBadge(provider.camp) }}
         </span>
       </div>
       <div class="mt-1 truncate text-sm text-[var(--app-text-soft)]">

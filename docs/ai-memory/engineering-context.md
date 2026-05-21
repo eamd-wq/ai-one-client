@@ -38,6 +38,8 @@
 14. 远程 AI 页默认不暴露 Tauri IPC，因此像“展开头部”这种壳层交互不要依赖给远程页面注入可回传命令的脚本，优先使用本地安全控件层。
 15. 当前收起态悬浮控件使用了透明子 `Webview`，为兼容 macOS 必须在 `src-tauri/tauri.conf.json` 中保持 `app.macOSPrivateApi = true`；这同时意味着该方案不适用于 mac App Store 分发。
 16. `scripts/run-tauri.mjs` 是跨平台入口脚本，必须使用 Node 的 `path.delimiter` 处理 `PATH`，不能再把分隔符写死成 Windows 的 `;`，否则会破坏 macOS / Linux 的打包环境。
+17. 界面语言当前支持 `zh-CN` 和 `en-US` 两种，并通过 `preferences.language` 持久化；新增用户可见文案时，优先补到 `src/lib/i18n.ts`，不要在组件里再写死字符串。
+18. 内置 provider 的名称与描述已经改成按语言生成，调用 `getProviderCatalog` / `getProviderById` 时必须传入当前语言，避免壳层标题与选择页出现中英不一致。
 
 ## 当前实现结构
 
@@ -69,3 +71,4 @@
 6. provider 列表头像当前统一使用网页 favicon，策略是从目标 URL 推导 `${origin}/favicon.ico`；如果加载失败则留空，不再回退为颜色字母块。
 7. 当前是贴边式布局，凡是继续调整头部高度、浮层或工作区边界时，都要同步检查 `AppShell` 与 `workspace.setShellTopOffset` / `refreshWebviewBounds` 是否仍然匹配。
 8. 仓库可以在当前 Windows 机器上稳定产出 `NSIS` 安装包，但 macOS `.app` / `.dmg` 仍需在 Mac 机器上执行 `pnpm tauri bundle --bundles app,dmg`，并准备签名 / 公证环境。
+9. README 当前维护为单文件双语文档，使用顶部锚点在 `中文` 和 `English` 之间跳转；后续文档更新要同步维护两种语言版本。

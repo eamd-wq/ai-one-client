@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useI18n } from "../lib/i18n";
 import type { ProviderCamp } from "../types/provider";
 
 const props = defineProps<{
@@ -10,11 +11,7 @@ const emit = defineEmits<{
   "update:modelValue": [value: ProviderCamp];
 }>();
 
-const labelMap: Record<ProviderCamp, string> = {
-  domestic: "国产派",
-  international: "国际派",
-  custom: "自定义",
-};
+const { tCamp } = useI18n();
 
 /**
  * 切换阵营偏好。
@@ -37,7 +34,7 @@ function selectCamp(camp: ProviderCamp) {
       "
       @click="selectCamp(camp)"
     >
-      {{ labelMap[camp] }}
+      {{ tCamp(camp) }}
     </button>
   </div>
 </template>

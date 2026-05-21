@@ -5,6 +5,7 @@ import { computed, ref } from "vue";
 import { appStore, defaultPreferences } from "../lib/store";
 import { applyDocumentTheme, resolveAppliedTheme } from "../lib/theme";
 import type {
+  AppLanguage,
   CustomProviderRecord,
   PreferencesSnapshot,
   ProviderCamp,
@@ -16,6 +17,7 @@ import type {
  */
 export const usePreferencesStore = defineStore("preferences", () => {
   const isReady = ref(false);
+  const language = ref<AppLanguage>(defaultPreferences.language);
   const camp = ref<ProviderCamp>(defaultPreferences.camp);
   const themeMode = ref<ThemeMode>(defaultPreferences.themeMode);
   const shortcut = ref(defaultPreferences.shortcut);
@@ -33,6 +35,8 @@ export const usePreferencesStore = defineStore("preferences", () => {
 
     await appStore.init();
 
+    language.value =
+      (await appStore.get<AppLanguage>("language")) ?? defaultPreferences.language;
     camp.value = (await appStore.get<ProviderCamp>("camp")) ?? defaultPreferences.camp;
     themeMode.value =
       (await appStore.get<ThemeMode>("themeMode")) ?? defaultPreferences.themeMode;
@@ -80,6 +84,14 @@ export const usePreferencesStore = defineStore("preferences", () => {
   async function setCamp(nextCamp: ProviderCamp) {
     camp.value = nextCamp;
     await appStore.set("camp", nextCamp);
+  }
+
+  /**
+   * 更新界面语言。
+   */
+  async function setLanguage(nextLanguage: AppLanguage) {
+    language.value = nextLanguage;
+    await appStore.set("language", nextLanguage);
   }
 
   /**
@@ -140,6 +152,7 @@ export const usePreferencesStore = defineStore("preferences", () => {
   }
 
   const snapshot = computed<PreferencesSnapshot>(() => ({
+    language: language.value,
     camp: camp.value,
     themeMode: themeMode.value,
     shortcut: shortcut.value,
@@ -149,6 +162,7 @@ export const usePreferencesStore = defineStore("preferences", () => {
 
   return {
     isReady,
+    language,
     camp,
     themeMode,
     shortcut,
@@ -159,6 +173,7 @@ export const usePreferencesStore = defineStore("preferences", () => {
     init,
     syncTheme,
     setCamp,
+    setLanguage,
     setThemeMode,
     setShortcut,
     setLastProviderId,

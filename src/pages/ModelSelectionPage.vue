@@ -6,6 +6,7 @@ import CampSwitch from "../components/CampSwitch.vue";
 import CustomProviderDialog from "../components/CustomProviderDialog.vue";
 import ProviderListItem from "../components/ProviderListItem.vue";
 import { getProviderCatalog, sortProvidersByCamp } from "../features/providers/providers";
+import { useI18n } from "../lib/i18n";
 import { usePreferencesStore } from "../stores/preferences";
 import { useWorkspaceStore } from "../stores/workspace";
 import type { ProviderCamp } from "../types/provider";
@@ -13,6 +14,7 @@ import type { ProviderCamp } from "../types/provider";
 const router = useRouter();
 const preferences = usePreferencesStore();
 const workspace = useWorkspaceStore();
+const { t } = useI18n();
 
 const customDialogOpen = ref(false);
 
@@ -27,7 +29,7 @@ const availableCamps = computed<ProviderCamp[]>(() => {
 });
 
 const providerCatalog = computed(() =>
-  getProviderCatalog(preferences.customProviders),
+  getProviderCatalog(preferences.language, preferences.customProviders),
 );
 
 const sortedProviders = computed(() =>
@@ -71,10 +73,10 @@ async function selectProvider(providerId: string) {
       <div class="flex w-full max-w-[760px] flex-col items-center">
         <div class="text-center">
           <p class="font-display text-[2.6rem] leading-none tracking-[0.18em] text-[var(--app-text)]">
-            PICK YOUR AI
+            {{ t("selection.title") }}
           </p>
           <p class="mt-3 text-sm text-[var(--app-text-soft)]">
-            用国产派 / 国际派 / 自定义即时重排，把你常用的模型放到第一屏。
+            {{ t("selection.description") }}
           </p>
         </div>
 
@@ -89,7 +91,7 @@ async function selectProvider(providerId: string) {
             class="rounded-full border border-[var(--app-border)] bg-[var(--app-bg-strong)] px-4 py-2 text-sm text-[var(--app-text)] transition hover:border-[var(--app-accent)] hover:bg-[var(--app-accent-soft)]"
             @click="openCustomDialog"
           >
-            自定义 AI 渠道
+            {{ t("common.addCustomChannel") }}
           </button>
         </div>
 

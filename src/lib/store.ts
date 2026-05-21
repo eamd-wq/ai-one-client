@@ -6,6 +6,7 @@ import type { PreferencesSnapshot } from "../types/provider";
  * 偏好设置默认值。
  */
 export const defaultPreferences: PreferencesSnapshot = {
+  language: "zh-CN",
   camp: "domestic",
   themeMode: "system",
   shortcut: "Shift+Alt+W",
