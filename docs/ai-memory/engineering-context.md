@@ -6,7 +6,7 @@
 2. 当前已验证通过前端 `typecheck`、`lint`、`build`，以及 `pnpm tauri build --bundles nsis`。
 3. 当前可交付产物包括：
    - `src-tauri/target/release/aiclientcore.exe`
-   - `src-tauri/target/release/bundle/nsis/AIClientCore_0.1.0_x64-setup.exe`
+   - `src-tauri/target/release/bundle/nsis/AIClientCore_0.1.1_x64-setup.exe`
 
 ## 目标技术栈
 

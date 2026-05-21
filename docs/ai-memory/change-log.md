@@ -2,6 +2,15 @@
 
 按时间倒序记录重要 AI 改动，重点保留“改了什么、为什么改、影响是什么”。
 
+## 2026-05-21 - 版本升级到 0.1.1 并重新产出 Windows NSIS 安装包
+
+- **改动**：将 `package.json`、`src-tauri/tauri.conf.json` 与 `src-tauri/Cargo.toml` 的版本号统一从 `0.1.0` 升到 `0.1.1`，并重新执行 `pnpm tauri build --bundles nsis`。
+- **原因**：用户要求打一个新的 Windows 包，并明确要求版本号上升一个版本。
+- **影响**：
+  - 成功生成新的 Windows 安装包：`src-tauri/target/release/bundle/nsis/AIClientCore_0.1.1_x64-setup.exe`。
+  - `pnpm build` 已通过。
+  - 当前 Windows 机器上的 Tauri CLI 仅支持 `msi` / `nsis` bundle，无法直接构建 macOS 的 `.app` / `.dmg`，仍需在 Mac 机器上执行对应打包命令。
+
 ## 2026-05-21 - 修复快捷键冲突白屏启动与高 DPI 下子 Webview 错位
 
 - **改动**：将全局快捷键初始化改为“冲突不阻塞启动”，新增启动冲突提示并在用户确认后自动跳转到设置页；同时把 `src/stores/workspace.ts` 的子 `Webview` 布局统一改为基于 `scaleFactor()` 换算后的逻辑像素，并补上窗口缩放变化时的 bounds 刷新。

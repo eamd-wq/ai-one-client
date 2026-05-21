@@ -1,6 +1,6 @@
 [package]
 name = "aiclientcore"
-version = "0.1.0"
+version = "0.1.1"
 description = "AI conversation aggregator desktop client built with Tauri"
 authors = ["OpenAI Codex"]
 edition = "2021"
