@@ -1,11 +1,15 @@
 import { emitTo } from "@tauri-apps/api/event";
 
 const MOVE_THRESHOLD = 3;
+const CONTROL_SIZE = 34;
+const CONTROL_MARGIN = 8;
 
 let startX = 0;
 let dragged = false;
+let currentLeft = 0;
 
 const buttonElement = getButtonElement();
+const colorSchemeMedia = globalThis.window.matchMedia("(prefers-color-scheme: dark)");
 
 /**
  * 获取悬浮控件按钮实例。
@@ -24,17 +28,6 @@ function getButtonElement() {
  */
 async function requestExpand() {
   await emitTo({ kind: "Webview", label: "main" }, "collapsed-control:expand-request");
-}
-
-/**
- * 向主壳层发送横向拖动增量。
- */
-async function emitDrag(deltaX: number) {
-  await emitTo(
-    { kind: "Webview", label: "main" },
-    "collapsed-control:drag",
-    { deltaX },
-  );
 }
 
 /**
@@ -64,7 +57,7 @@ function handlePointerMove(event: PointerEvent) {
   }
 
   startX = event.clientX;
-  void emitDrag(deltaX);
+  applyControlLeft(currentLeft + deltaX);
 }
 
 /**
@@ -88,47 +81,131 @@ function handleClick() {
   void requestExpand();
 }
 
+/**
+ * 约束圆形按钮只能在顶部透明条内横向移动。
+ */
+function clampLeft(nextLeft: number) {
+  const maxLeft = Math.max(
+    globalThis.window.innerWidth - CONTROL_SIZE - CONTROL_MARGIN,
+    CONTROL_MARGIN,
+  );
+
+  return Math.min(Math.max(nextLeft, CONTROL_MARGIN), maxLeft);
+}
+
+/**
+ * 立即更新按钮水平位置，保证拖拽跟手。
+ */
+function applyControlLeft(nextLeft: number) {
+  currentLeft = clampLeft(nextLeft);
+  buttonElement.style.left = `${currentLeft}px`;
+}
+
+/**
+ * 初始化顶部透明条与圆形按钮位置。
+ */
+function setupOverlayLayout() {
+  const centeredLeft = Math.round((globalThis.window.innerWidth - CONTROL_SIZE) / 2);
+  applyControlLeft(currentLeft || centeredLeft);
+}
+
+/**
+ * 获取与主应用一致的浅色/深色主题色板。
+ */
+function getThemePalette() {
+  if (colorSchemeMedia.matches) {
+    return {
+      colorScheme: "dark",
+      text: "#f7ecdd",
+      textHover: "#fff6ec",
+      border: "rgba(245, 219, 190, 0.12)",
+      borderHover: "rgba(240, 157, 88, 0.28)",
+      background: "rgba(31, 25, 21, 0.82)",
+      backgroundHover: "rgba(33, 27, 22, 0.92)",
+    } as const;
+  }
+
+  return {
+    colorScheme: "light",
+    text: "#24180f",
+    textHover: "#24180f",
+    border: "rgba(96, 74, 40, 0.14)",
+    borderHover: "rgba(187, 90, 49, 0.28)",
+    background: "rgba(255, 250, 242, 0.9)",
+    backgroundHover: "rgba(255, 249, 240, 0.98)",
+  } as const;
+}
+
+/**
+ * 同步悬浮按钮的主题配色。
+ */
+function applyThemePalette() {
+  const palette = getThemePalette();
+
+  document.documentElement.style.colorScheme = palette.colorScheme;
+  buttonElement.dataset.textColor = palette.text;
+  buttonElement.dataset.textHoverColor = palette.textHover;
+  buttonElement.dataset.borderColor = palette.border;
+  buttonElement.dataset.borderHoverColor = palette.borderHover;
+  buttonElement.dataset.backgroundColor = palette.background;
+  buttonElement.dataset.backgroundHoverColor = palette.backgroundHover;
+
+  buttonElement.style.color = palette.text;
+  buttonElement.style.borderColor = palette.border;
+  buttonElement.style.background = palette.background;
+}
+
 buttonElement.addEventListener("pointerdown", handlePointerDown);
 buttonElement.addEventListener("pointermove", handlePointerMove);
 buttonElement.addEventListener("pointerup", handlePointerUp);
 buttonElement.addEventListener("pointercancel", handlePointerUp);
 buttonElement.addEventListener("click", handleClick);
+globalThis.window.addEventListener("resize", setupOverlayLayout);
+colorSchemeMedia.addEventListener("change", applyThemePalette);
 
 document.documentElement.style.background = "transparent";
+document.documentElement.style.width = "100%";
+document.documentElement.style.height = "100%";
 document.body.style.margin = "0";
 document.body.style.background = "transparent";
 document.body.style.overflow = "hidden";
 document.body.style.userSelect = "none";
 document.body.style.webkitUserSelect = "none";
+document.body.style.width = "100vw";
+document.body.style.height = "44px";
+document.body.style.position = "relative";
+document.body.style.pointerEvents = "none";
 
-buttonElement.style.width = "34px";
-buttonElement.style.height = "34px";
+buttonElement.style.width = "28px";
+buttonElement.style.height = "28px";
 buttonElement.style.padding = "0";
-buttonElement.style.border = "1px solid rgba(255, 255, 255, 0.18)";
+buttonElement.style.border = "1px solid transparent";
 buttonElement.style.borderRadius = "999px";
-buttonElement.style.background = "rgba(22, 18, 15, 0.68)";
-buttonElement.style.backdropFilter = "blur(18px)";
-buttonElement.style.setProperty("-webkit-backdrop-filter", "blur(18px)");
-buttonElement.style.boxShadow = "0 12px 28px rgba(0, 0, 0, 0.22)";
+buttonElement.style.background = "transparent";
+buttonElement.style.setProperty("-webkit-backdrop-filter", "blur(14px)");
 buttonElement.style.color = "#fff6ec";
 buttonElement.style.display = "grid";
 buttonElement.style.placeItems = "center";
-buttonElement.style.position = "relative";
+buttonElement.style.position = "absolute";
+buttonElement.style.top = "8px";
 buttonElement.style.cursor = "pointer";
+buttonElement.style.pointerEvents = "auto";
 buttonElement.style.outline = "none";
 buttonElement.style.transition =
-  "transform 160ms ease, border-color 160ms ease, background 160ms ease";
+  "transform 120ms ease, border-color 120ms ease, color 120ms ease, background 120ms ease";
 
 buttonElement.addEventListener("mouseenter", () => {
-  buttonElement.style.transform = "translateY(1px)";
-  buttonElement.style.background = "rgba(35, 29, 24, 0.76)";
-  buttonElement.style.borderColor = "rgba(255, 214, 178, 0.3)";
+  buttonElement.style.transform = "scale(1.04)";
+  buttonElement.style.borderColor = buttonElement.dataset.borderHoverColor ?? "";
+  buttonElement.style.background = buttonElement.dataset.backgroundHoverColor ?? "";
+  buttonElement.style.color = buttonElement.dataset.textHoverColor ?? "";
 });
 
 buttonElement.addEventListener("mouseleave", () => {
-  buttonElement.style.transform = "translateY(0)";
-  buttonElement.style.background = "rgba(22, 18, 15, 0.68)";
-  buttonElement.style.borderColor = "rgba(255, 255, 255, 0.18)";
+  buttonElement.style.borderColor = "rgba(255, 255, 255, 0.16)";
+  buttonElement.style.background = buttonElement.dataset.backgroundColor ?? "";
+  buttonElement.style.color = buttonElement.dataset.textColor ?? "";
+  buttonElement.style.borderColor = buttonElement.dataset.borderColor ?? "";
 });
 
 buttonElement.querySelectorAll<HTMLElement>(".line").forEach((lineElement) => {
@@ -154,3 +231,6 @@ if (secondaryLine) {
   secondaryLine.style.height = "1.5px";
   secondaryLine.style.opacity = "0.68";
 }
+
+applyThemePalette();
+setupOverlayLayout();

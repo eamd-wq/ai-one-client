@@ -15,7 +15,6 @@ const workspace = useWorkspaceStore();
 const isHeaderCollapsed = ref(false);
 const topOffsetAnimationFrame = ref<number | null>(null);
 const unlistenExpandRequest = ref<(() => void) | null>(null);
-const unlistenDragRequest = ref<(() => void) | null>(null);
 
 const activeProviderName = computed(() => workspace.activeProvider?.name ?? "选择 AI");
 const canCollapseHeader = computed(
@@ -130,17 +129,6 @@ onMounted(async () => {
       await expandHeader();
     },
   );
-
-  unlistenDragRequest.value = await listen<{ deltaX: number }>(
-    "collapsed-control:drag",
-    async (event) => {
-      if (!isHeaderCollapsed.value) {
-        return;
-      }
-
-      await workspace.moveCollapsedControlBy(event.payload.deltaX);
-    },
-  );
 });
 
 onBeforeUnmount(() => {
@@ -149,10 +137,6 @@ onBeforeUnmount(() => {
 
   if (unlistenExpandRequest.value) {
     void unlistenExpandRequest.value();
-  }
-
-  if (unlistenDragRequest.value) {
-    void unlistenDragRequest.value();
   }
 });
 

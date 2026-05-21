@@ -13,8 +13,7 @@ const SHELL_SIDE_PADDING = 0;
 const SHELL_BOTTOM_PADDING = 0;
 const CONTENT_INSET = 0;
 const COLLAPSED_CONTROL_LABEL = "overlay:collapsed-control";
-const COLLAPSED_CONTROL_SIZE = 34;
-const COLLAPSED_CONTROL_MARGIN = 8;
+const COLLAPSED_CONTROL_OVERLAY_HEIGHT = 44;
 
 /**
  * 工作区 store，负责远程子 Webview 的创建、切换、显示与隐藏。
@@ -24,7 +23,6 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   const currentPane = ref<"select" | "settings" | "provider">("select");
   const createdWebviews = ref<string[]>([]);
   const shellTopOffset = ref(DEFAULT_SHELL_TOP_OFFSET);
-  const collapsedControlLeft = ref<number | null>(null);
 
   /**
    * 计算子 Webview 的布局矩形。
@@ -45,37 +43,17 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   }
 
   /**
-   * 约束收起态展开控件的水平位置。
-   */
-  async function clampCollapsedControlLeft(nextLeft: number) {
-    const window = getCurrentWindow();
-    const size = await window.innerSize();
-    const maxLeft = Math.max(
-      size.width - COLLAPSED_CONTROL_SIZE - COLLAPSED_CONTROL_MARGIN,
-      COLLAPSED_CONTROL_MARGIN,
-    );
-
-    return Math.min(Math.max(nextLeft, COLLAPSED_CONTROL_MARGIN), maxLeft);
-  }
-
-  /**
    * 计算收起态展开控件的布局矩形。
    */
   async function getCollapsedControlRect() {
     const window = getCurrentWindow();
     const size = await window.innerSize();
-    const defaultLeft = Math.round((size.width - COLLAPSED_CONTROL_SIZE) / 2);
-    const left = await clampCollapsedControlLeft(
-      collapsedControlLeft.value ?? defaultLeft,
-    );
-
-    collapsedControlLeft.value = left;
 
     return {
-      x: left,
-      y: COLLAPSED_CONTROL_MARGIN,
-      width: COLLAPSED_CONTROL_SIZE,
-      height: COLLAPSED_CONTROL_SIZE,
+      x: 0,
+      y: 0,
+      width: size.width,
+      height: COLLAPSED_CONTROL_OVERLAY_HEIGHT,
     };
   }
 
@@ -267,17 +245,6 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   }
 
   /**
-   * 按拖动增量更新收起态展开控件位置。
-   */
-  async function moveCollapsedControlBy(deltaX: number) {
-    collapsedControlLeft.value = await clampCollapsedControlLeft(
-      (collapsedControlLeft.value ?? COLLAPSED_CONTROL_MARGIN) + deltaX,
-    );
-
-    await refreshCollapsedControlBounds();
-  }
-
-  /**
    * 同步主题到已创建的子 Webview。
    */
   async function syncThemeToWebviews(theme: "light" | "dark") {
@@ -376,6 +343,5 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     setShellTopOffset,
     showCollapsedControl,
     hideCollapsedControl,
-    moveCollapsedControlBy,
   };
 });
