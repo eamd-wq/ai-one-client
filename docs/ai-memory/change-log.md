@@ -21,6 +21,24 @@
   - `pnpm tauri --help` 与 `pnpm tauri info` 已恢复正常。
   - 后续 `pnpm tauri dev`、`pnpm tauri build` 对终端 PATH 的依赖明显降低。
 
+## 2026-05-21 - 支持自定义 AI 渠道与 favicon 头像
+
+- **改动**：新增自定义 AI 渠道弹框，可录入名称和链接地址并持久化到 `customProviders`；AI 列表新增“自定义”排序入口；provider 头像统一改为网页 favicon，获取失败则留空。
+- **原因**：用户需要把更多第三方 AI 渠道纳入统一入口，同时去掉原先的颜色字母头像方案。
+- **影响**：
+  - 选择页现在会基于“国产 / 国际 / 自定义”三种阵营重排。
+  - 自定义渠道和内置渠道共用同一套 provider 目录与 Webview 打开逻辑。
+  - `pnpm typecheck`、`pnpm lint`、`pnpm build` 已全部通过。
+
+## 2026-05-21 - 支持头部折叠与顶部拖拽入口
+
+- **改动**：头部新增“收起”能力；收起后改为顶部悬浮小图标，点击可恢复展开，图标支持左右拖动；同时将内容区原生子 `Webview` 的顶部偏移改为可动态联动。
+- **原因**：用户希望在保留导航入口的同时，把顶部占用进一步压缩。
+- **影响**：
+  - `AppShell` 不再是固定高度壳层，顶部可在展开 / 收起两种模式间切换。
+  - `workspace` 需要依赖 `shellTopOffset` 来决定子 `Webview` 的真实 y 坐标。
+  - `pnpm typecheck`、`pnpm lint`、`pnpm build` 已全部通过。
+
 ## 2026-05-21 - 完成首版 AI 聚合客户端主干实现
 
 - **改动**：完成 `Tauri v2 + Vue3 + TypeScript` 首版业务实现，包含模型选择页、国产派 / 国际派排序、上次选择记忆、设置页、全局快捷键、主题切换、主窗口子 Webview 承载与状态保持。

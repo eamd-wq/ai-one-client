@@ -1,12 +1,21 @@
 /**
  * AI 阵营类型。
  */
-export type ProviderCamp = "domestic" | "international";
+export type ProviderCamp = "domestic" | "international" | "custom";
 
 /**
  * 主题模式。
  */
 export type ThemeMode = "system" | "light" | "dark";
+
+/**
+ * 自定义 AI 渠道持久化结构。
+ */
+export interface CustomProviderRecord {
+  id: string;
+  name: string;
+  url: string;
+}
 
 /**
  * AI 提供方定义。
@@ -17,8 +26,8 @@ export interface ProviderDefinition {
   camp: ProviderCamp;
   url: string;
   description: string;
-  accent: string;
-  badge: string;
+  iconUrl: string | null;
+  isCustom?: boolean;
 }
 
 /**
@@ -29,4 +38,5 @@ export interface PreferencesSnapshot {
   themeMode: ThemeMode;
   shortcut: string;
   lastProviderId: string | null;
+  customProviders: CustomProviderRecord[];
 }

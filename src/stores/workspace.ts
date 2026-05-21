@@ -5,12 +5,13 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 
-import { providers } from "../features/providers/providers";
+import { getProviderById } from "../features/providers/providers";
 import { usePreferencesStore } from "./preferences";
 
-const SHELL_TOP_OFFSET = 84;
-const SHELL_SIDE_PADDING = 12;
-const SHELL_BOTTOM_PADDING = 12;
+const DEFAULT_SHELL_TOP_OFFSET = 60;
+const SHELL_SIDE_PADDING = 0;
+const SHELL_BOTTOM_PADDING = 0;
+const CONTENT_INSET = 0;
 
 /**
  * 工作区 store，负责远程子 Webview 的创建、切换、展示与隐藏。
@@ -19,6 +20,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   const activeProviderId = ref<string | null>(null);
   const currentPane = ref<"select" | "settings" | "provider">("select");
   const createdWebviews = ref<string[]>([]);
+  const shellTopOffset = ref(DEFAULT_SHELL_TOP_OFFSET);
 
   /**
    * 计算子 Webview 的布局矩形。
@@ -28,11 +30,22 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     const size = await window.innerSize();
 
     return {
-      x: SHELL_SIDE_PADDING,
-      y: SHELL_TOP_OFFSET,
-      width: Math.max(size.width - SHELL_SIDE_PADDING * 2, 320),
-      height: Math.max(size.height - SHELL_TOP_OFFSET - SHELL_BOTTOM_PADDING, 320),
+      x: SHELL_SIDE_PADDING + CONTENT_INSET,
+      y: shellTopOffset.value + CONTENT_INSET,
+      width: Math.max(size.width - SHELL_SIDE_PADDING * 2 - CONTENT_INSET * 2, 320),
+      height: Math.max(
+        size.height - shellTopOffset.value - SHELL_BOTTOM_PADDING - CONTENT_INSET * 2,
+        320,
+      ),
     };
+  }
+
+  /**
+   * 更新壳层顶部占位高度，并同步刷新活动 Webview。
+   */
+  async function setShellTopOffset(nextOffset: number) {
+    shellTopOffset.value = nextOffset;
+    await refreshActiveWebviewBounds();
   }
 
   /**
@@ -66,12 +79,12 @@ export const useWorkspaceStore = defineStore("workspace", () => {
    */
   async function ensureProviderWebview(providerId: string) {
     const existing = await getExistingWebview(providerId);
-
     if (existing) {
       return existing;
     }
 
-    const provider = providers.find((item) => item.id === providerId);
+    const preferences = usePreferencesStore();
+    const provider = getProviderById(providerId, preferences.customProviders);
     if (!provider) {
       throw new Error(`Provider not found: ${providerId}`);
     }
@@ -168,7 +181,6 @@ export const useWorkspaceStore = defineStore("workspace", () => {
    */
   async function openInitialView() {
     const preferences = usePreferencesStore();
-
     if (preferences.lastProviderId) {
       await openProvider(preferences.lastProviderId);
       return;
@@ -195,20 +207,27 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     await view.setSize(new PhysicalSize(rect.width, rect.height));
   }
 
-  const activeProvider = computed(() =>
-    providers.find((item) => item.id === activeProviderId.value) ?? null,
-  );
+  const activeProvider = computed(() => {
+    const preferences = usePreferencesStore();
+    if (!activeProviderId.value) {
+      return null;
+    }
+
+    return getProviderById(activeProviderId.value, preferences.customProviders);
+  });
 
   return {
     activeProviderId,
     currentPane,
     activeProvider,
     createdWebviews,
+    shellTopOffset,
     openProvider,
     showSelection,
     showSettings,
     openInitialView,
     refreshActiveWebviewBounds,
     syncThemeToWebviews,
+    setShellTopOffset,
   };
 });

@@ -20,7 +20,7 @@ const emptyState = computed(() => !workspace.activeProviderId);
           ONE DESKTOP, MANY MODELS
         </div>
         <p class="mx-auto mt-4 max-w-[520px] text-sm leading-7 text-[var(--app-text-soft)]">
-          这是你的 AI 聚合工作台。第一次进入时先从模型选择页挑一个入口，后续会直接回到你上次打开的对话页。
+          第一次进入时先从模型选择页挑一个入口，后续会直接回到你上次打开的对话页。
         </p>
         <RouterLink
           to="/select"

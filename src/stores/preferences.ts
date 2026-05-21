@@ -4,10 +4,15 @@ import { computed, ref } from "vue";
 
 import { appStore, defaultPreferences } from "../lib/store";
 import { applyDocumentTheme, resolveAppliedTheme } from "../lib/theme";
-import type { PreferencesSnapshot, ProviderCamp, ThemeMode } from "../types/provider";
+import type {
+  CustomProviderRecord,
+  PreferencesSnapshot,
+  ProviderCamp,
+  ThemeMode,
+} from "../types/provider";
 
 /**
- * 偏好设置 store，负责阵营、主题、快捷键与上次选择持久化。
+ * 偏好设置 store，负责阵营、主题、快捷键、上次选择与自定义渠道持久化。
  */
 export const usePreferencesStore = defineStore("preferences", () => {
   const isReady = ref(false);
@@ -15,6 +20,7 @@ export const usePreferencesStore = defineStore("preferences", () => {
   const themeMode = ref<ThemeMode>(defaultPreferences.themeMode);
   const shortcut = ref(defaultPreferences.shortcut);
   const lastProviderId = ref<string | null>(defaultPreferences.lastProviderId);
+  const customProviders = ref<CustomProviderRecord[]>(defaultPreferences.customProviders);
   const appliedTheme = ref<"light" | "dark">("light");
 
   /**
@@ -35,6 +41,9 @@ export const usePreferencesStore = defineStore("preferences", () => {
     lastProviderId.value =
       (await appStore.get<string | null>("lastProviderId")) ??
       defaultPreferences.lastProviderId;
+    customProviders.value =
+      (await appStore.get<CustomProviderRecord[]>("customProviders")) ??
+      defaultPreferences.customProviders;
 
     await syncTheme();
 
@@ -99,6 +108,22 @@ export const usePreferencesStore = defineStore("preferences", () => {
   }
 
   /**
+   * 新增自定义渠道。
+   */
+  async function addCustomProvider(payload: { name: string; url: string }) {
+    const nextProvider: CustomProviderRecord = {
+      id: `custom:${crypto.randomUUID()}`,
+      name: payload.name,
+      url: payload.url,
+    };
+
+    customProviders.value = [...customProviders.value, nextProvider];
+    await appStore.set("customProviders", customProviders.value);
+
+    return nextProvider;
+  }
+
+  /**
    * 获取默认窗口尺寸，供首次子视图布局时参考。
    */
   async function getWorkspaceBounds() {
@@ -119,6 +144,7 @@ export const usePreferencesStore = defineStore("preferences", () => {
     themeMode: themeMode.value,
     shortcut: shortcut.value,
     lastProviderId: lastProviderId.value,
+    customProviders: customProviders.value,
   }));
 
   return {
@@ -127,6 +153,7 @@ export const usePreferencesStore = defineStore("preferences", () => {
     themeMode,
     shortcut,
     lastProviderId,
+    customProviders,
     appliedTheme,
     snapshot,
     init,
@@ -135,6 +162,7 @@ export const usePreferencesStore = defineStore("preferences", () => {
     setThemeMode,
     setShortcut,
     setLastProviderId,
+    addCustomProvider,
     getWorkspaceBounds,
   };
 });

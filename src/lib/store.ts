@@ -10,6 +10,7 @@ export const defaultPreferences: PreferencesSnapshot = {
   themeMode: "system",
   shortcut: "Shift+Alt+W",
   lastProviderId: null,
+  customProviders: [],
 };
 
 /**

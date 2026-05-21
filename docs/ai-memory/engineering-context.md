@@ -43,6 +43,10 @@
 6. `src/pages/SettingsPage.vue` 提供快捷键与主题设置。
 7. `src/pages/WorkspacePage.vue` 作为 AI 工作区壳层，子 Webview 显示在其下方区域。
 8. `src-tauri/src/lib.rs` 提供主题脚本注入命令，并注册 store / opener / global-shortcut 插件。
+9. `src/features/providers/providers.ts` 现在负责把“内置 provider + 自定义 provider”合并成统一目录，并集中处理 favicon URL、排序和按 id 查找。
+10. 自定义 AI 渠道通过 `@tauri-apps/plugin-store` 持久化在 `customProviders` 字段中，`lastProviderId` 可以直接指向自定义渠道。
+11. `src/components/AppShell.vue` 现在支持头部折叠：展开态显示完整导航，收起态显示一个顶部悬浮小图标；图标只允许水平拖动。
+12. `src/stores/workspace.ts` 维护 `shellTopOffset`，用于让原生子 `Webview` 跟随壳层头部高度变化而重新布局；后续凡是改顶部壳层高度，都要同步更新这里。
 
 ## 实现边界
 
@@ -59,3 +63,5 @@
 4. 如果后续需要 `MSI`，仍需补齐 WiX 相关环境或可访问的下载链路；当前 `NSIS` 安装包已可作为主交付物。
 5. `pnpm tauri build --bundles nsis` 在本机成功的前提之一是运行环境可找到 `makensis.exe` 与 `cargo.exe`；若新终端 PATH 缺失，需要显式补上。
 6. 仓库已提供 `scripts/run-tauri.mjs` 作为 Tauri CLI 包装脚本，`package.json` 中的 `pnpm tauri ...` 会自动补齐 Windows 下常见的 `cargo` 与 `NSIS` 路径，优先复用这条入口，不要再假设终端 PATH 已正确配置。
+7. provider 列表头像已统一改为网页 favicon，当前策略是从目标 URL 推导 `${origin}/favicon.ico`；如果加载失败则头像留空，不再回退到颜色字母块。
+8. 当前“贴边式”布局下，头部和内容区都直接贴到父窗口边界；如果再做顶栏/悬浮入口变化，优先检查 `AppShell` 与 `workspace.setShellTopOffset` 是否仍然匹配。
