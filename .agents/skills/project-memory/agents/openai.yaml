@@ -1,0 +1,4 @@
+interface:
+  display_name: Project Memory
+  short_description: Maintain reusable project memory and change records
+  default_prompt: Use $project-memory to read or update the repository memory before or after code changes.
