@@ -90,7 +90,7 @@ const messages = {
       validationGeneric: "表单校验失败。",
     },
     hotkey: {
-      alreadyRegistered: "该快捷键已被当前应用注册。",
+      alreadyRegistered: "该快捷键已被当前应用或其他软件占用。",
     },
     providers: {
       deepseekDescription: "深度推理优先，适合技术问答与结构化输出。",
@@ -192,7 +192,7 @@ const messages = {
       validationGeneric: "Form validation failed.",
     },
     hotkey: {
-      alreadyRegistered: "This shortcut is already registered by the current app.",
+      alreadyRegistered: "This shortcut is already in use by this app or another app.",
     },
     providers: {
       deepseekDescription: "Reasoning-first experience for technical Q&A and structured output.",

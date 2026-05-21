@@ -25,6 +25,10 @@ const shortcutLabel = computed(() =>
 const availableLanguages: AppLanguage[] = ["zh-CN", "en-US"];
 const availableThemeModes: ThemeMode[] = ["system", "light", "dark"];
 
+if (hotkey.startupConflictMessage) {
+  errorMessage.value = hotkey.startupConflictMessage;
+}
+
 /**
  * 更新主题模式。
  */

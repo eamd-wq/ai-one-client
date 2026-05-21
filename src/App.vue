@@ -1,11 +1,14 @@
 <script setup lang="ts">
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { onMounted } from "vue";
 import { useRouter } from "vue-router";
 
 import AppShell from "./components/AppShell.vue";
+import { useHotkeyStore } from "./stores/hotkey";
 import { useWorkspaceStore } from "./stores/workspace";
 
 const router = useRouter();
+const hotkey = useHotkeyStore();
 const workspace = useWorkspaceStore();
 
 /**
@@ -20,12 +23,21 @@ onMounted(async () => {
     await router.replace("/select");
   }
 
-  const windowApi = await import("@tauri-apps/api/window");
-  const currentWindow = windowApi.getCurrentWindow();
+  const currentWindow = getCurrentWindow();
 
   await currentWindow.onResized(async () => {
     await workspace.refreshWebviewBounds();
   });
+
+  await currentWindow.onScaleChanged(async () => {
+    await workspace.refreshWebviewBounds();
+  });
+
+  if (hotkey.startupConflictMessage) {
+    globalThis.window.alert(hotkey.startupConflictMessage);
+    await workspace.showSettings();
+    await router.replace("/settings");
+  }
 });
 </script>
 

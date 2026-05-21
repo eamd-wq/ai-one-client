@@ -2,6 +2,47 @@
 
 按时间倒序记录重要 AI 改动，重点保留“改了什么、为什么改、影响是什么”。
 
+## 2026-05-21 - 修复快捷键冲突白屏启动与高 DPI 下子 Webview 错位
+
+- **改动**：将全局快捷键初始化改为“冲突不阻塞启动”，新增启动冲突提示并在用户确认后自动跳转到设置页；同时把 `src/stores/workspace.ts` 的子 `Webview` 布局统一改为基于 `scaleFactor()` 换算后的逻辑像素，并补上窗口缩放变化时的 bounds 刷新。
+- **原因**：快捷键与系统或其他软件冲突时，原流程会在 `app.mount` 前抛错导致界面只剩背景色；而子 `Webview` 之前混用了物理像素和逻辑像素，在不同分辨率 / 缩放下会出现网页横向偏移、头部只显示一半和收起按钮被裁切。
+- **影响**：
+  - 启动时即使快捷键冲突，主界面也会正常显示，并引导用户直接去设置页修复。
+  - provider 页面与收起态悬浮控件在高 DPI / 多分辨率下会与壳层头部重新对齐。
+  - `pnpm typecheck`、`pnpm lint`、`pnpm build` 已通过。
+
+## 2026-05-21 - 修复当前机器 Rust toolchain 缺失与 Tauri 脚本用户目录写死问题
+
+- **改动**：在当前 Windows 机器上执行了 `rustup default stable`，安装并设置默认 `stable-x86_64-pc-windows-msvc`；同时将 `scripts/run-tauri.mjs` 中写死的 `C:\\Users\\admin\\.cargo\\bin` 改为基于当前用户 home 目录动态拼接。
+- **原因**：当前环境里 `rustup` 没有任何已安装/激活的 toolchain，导致 `cargo metadata` 直接失败；而脚本里写死其他账户的 cargo 路径，会让 PATH 兜底在当前用户下失效。
+- **影响**：
+  - `cargo metadata` 已恢复正常，`pnpm tauri info` 可成功运行并识别到 `rustc` / `cargo`。
+  - 后续在当前用户下执行 `pnpm tauri dev`、`pnpm tauri build` 的环境稳定性更高。
+
+## 2026-05-21 - 清理残留 dev 进程，修复 Tauri 开发端口 1420 冲突
+
+- **改动**：定位并清理了当前仓库残留的 `vite`、`tauri dev` 和相关 `cargo run` 进程，释放固定开发端口 `1420`；随后重新验证 `pnpm tauri dev` 已不再报端口占用或 `cargo metadata` 错误。
+- **原因**：仓库 `vite.config.ts` 使用固定端口 `1420` 且 `strictPort = true`，一旦上次启动残留 `vite` 进程，新的 Tauri dev 就会直接失败。
+- **影响**：
+  - 当前机器上的开发启动链路已恢复。
+  - 后续若再次遇到 `Port 1420 is already in use`，优先清理本仓库残留 dev 进程，而不是改端口。
+
+## 2026-05-21 - 让 Tauri beforeDevCommand 自动复用已有 Vite dev server
+
+- **改动**：新增 `scripts/run-vite-dev.mjs`，并将 `src-tauri/tauri.conf.json` 的 `beforeDevCommand` 从直接执行 `pnpm dev` 改为先探测 `1420` 端口；如果已经是当前仓库自己的 Vite dev server，则直接复用，否则再拉起新的 dev server。
+- **原因**：当前开发链路固定使用 `1420` 且 `strictPort = true`，同一个仓库重复执行 `pnpm tauri dev` 时，很容易因为已有 Vite 进程占端口而立刻失败。
+- **影响**：
+  - 二次执行 `pnpm tauri dev` 时会优先复用已存在的前端 dev server，不再反复撞固定端口。
+  - 如果 `1420` 被其他非本仓库服务占用，脚本会明确报错而不是静默复用错误目标。
+
+## 2026-05-21 - 修正 beforeDevCommand 脚本路径
+
+- **改动**：将 `src-tauri/tauri.conf.json` 中 `beforeDevCommand` 的脚本路径从 `node ../scripts/run-vite-dev.mjs` 改为 `node scripts/run-vite-dev.mjs`。
+- **原因**：Tauri 执行 `beforeDevCommand` 时的当前工作目录是仓库根目录，不是 `src-tauri/`；原路径会多退一层，直接报 `MODULE_NOT_FOUND`。
+- **影响**：
+  - `beforeDevCommand` 现在可以正常找到并执行 `run-vite-dev`。
+  - 本仓库的 Vite dev server 已能再次成功拉起到 `1420`。
+
 ## 2026-05-21 - 头部收起改为真全屏子 Webview + 本地悬浮展开控件
 
 - **改动**：移除了此前会残留顶部高度的 DOM 收起图标方案；头部收起时现在把 `shellTopOffset` 动画到 `0`，并新增 `overlay-control.html` / `src/overlay-control.ts` 作为本地悬浮展开控件入口，支持顶部居中显示与仅 X 轴拖动；左上角品牌区也恢复为自然宽度。

@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { PhysicalPosition, PhysicalSize } from "@tauri-apps/api/dpi";
+import { LogicalPosition, LogicalSize } from "@tauri-apps/api/dpi";
 import { Webview } from "@tauri-apps/api/webview";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { defineStore } from "pinia";
@@ -15,6 +15,13 @@ const CONTENT_INSET = 0;
 const COLLAPSED_CONTROL_LABEL = "overlay:collapsed-control";
 const COLLAPSED_CONTROL_OVERLAY_HEIGHT = 44;
 
+type WebviewRect = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
 /**
  * 工作区 store，负责远程子 Webview 的创建、切换、显示与隐藏。
  */
@@ -25,18 +32,36 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   const shellTopOffset = ref(DEFAULT_SHELL_TOP_OFFSET);
 
   /**
+   * 将窗口物理像素尺寸转换成与前端 CSS 一致的逻辑像素尺寸。
+   */
+  async function getWindowLogicalSize() {
+    const window = getCurrentWindow();
+    const [size, scaleFactor] = await Promise.all([
+      window.innerSize(),
+      window.scaleFactor(),
+    ]);
+
+    return size.toLogical(scaleFactor);
+  }
+
+  /**
    * 计算子 Webview 的布局矩形。
    */
-  async function getWebviewRect() {
-    const window = getCurrentWindow();
-    const size = await window.innerSize();
+  async function getWebviewRect(): Promise<WebviewRect> {
+    const size = await getWindowLogicalSize();
 
     return {
       x: SHELL_SIDE_PADDING + CONTENT_INSET,
       y: shellTopOffset.value + CONTENT_INSET,
-      width: Math.max(size.width - SHELL_SIDE_PADDING * 2 - CONTENT_INSET * 2, 320),
+      width: Math.max(
+        Math.round(size.width) - SHELL_SIDE_PADDING * 2 - CONTENT_INSET * 2,
+        320,
+      ),
       height: Math.max(
-        size.height - shellTopOffset.value - SHELL_BOTTOM_PADDING - CONTENT_INSET * 2,
+        Math.round(size.height) -
+          shellTopOffset.value -
+          SHELL_BOTTOM_PADDING -
+          CONTENT_INSET * 2,
         320,
       ),
     };
@@ -45,14 +70,13 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   /**
    * 计算收起态展开控件的布局矩形。
    */
-  async function getCollapsedControlRect() {
-    const window = getCurrentWindow();
-    const size = await window.innerSize();
+  async function getCollapsedControlRect(): Promise<WebviewRect> {
+    const size = await getWindowLogicalSize();
 
     return {
       x: 0,
       y: 0,
-      width: size.width,
+      width: Math.max(Math.round(size.width), 320),
       height: COLLAPSED_CONTROL_OVERLAY_HEIGHT,
     };
   }
@@ -62,7 +86,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
    */
   async function setShellTopOffset(nextOffset: number) {
     shellTopOffset.value = nextOffset;
-    await refreshActiveWebviewBounds();
+    await refreshWebviewBounds();
   }
 
   /**
@@ -134,7 +158,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     await new Promise<void>((resolve, reject) => {
       void view.once("tauri://created", async () => {
         try {
-          await view.setAutoResize(true);
+          await view.setAutoResize(false);
           createdWebviews.value = [...new Set([...createdWebviews.value, providerId])];
           resolve();
         } catch (error) {
@@ -200,6 +224,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     const view = await ensureProviderWebview(providerId);
 
     await hideAllWebviews();
+    await refreshProviderWebviewBounds(providerId);
     await view.show();
     await view.setFocus();
 
@@ -282,6 +307,20 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   }
 
   /**
+   * 刷新指定 provider 子 Webview 的布局。
+   */
+  async function refreshProviderWebviewBounds(providerId: string) {
+    const view = await getExistingWebview(providerId);
+    if (!view) {
+      return;
+    }
+
+    const rect = await getWebviewRect();
+    await view.setPosition(new LogicalPosition(rect.x, rect.y));
+    await view.setSize(new LogicalSize(rect.width, rect.height));
+  }
+
+  /**
    * 根据窗口尺寸变化刷新活动 Webview 布局。
    */
   async function refreshActiveWebviewBounds() {
@@ -289,14 +328,16 @@ export const useWorkspaceStore = defineStore("workspace", () => {
       return;
     }
 
-    const view = await getExistingWebview(activeProviderId.value);
-    if (!view) {
-      return;
-    }
+    await refreshProviderWebviewBounds(activeProviderId.value);
+  }
 
-    const rect = await getWebviewRect();
-    await view.setPosition(new PhysicalPosition(rect.x, rect.y));
-    await view.setSize(new PhysicalSize(rect.width, rect.height));
+  /**
+   * 刷新所有已创建 provider 子 Webview 的布局。
+   */
+  async function refreshAllProviderWebviewBounds() {
+    for (const providerId of createdWebviews.value) {
+      await refreshProviderWebviewBounds(providerId);
+    }
   }
 
   /**
@@ -309,15 +350,15 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     }
 
     const rect = await getCollapsedControlRect();
-    await view.setPosition(new PhysicalPosition(rect.x, rect.y));
-    await view.setSize(new PhysicalSize(rect.width, rect.height));
+    await view.setPosition(new LogicalPosition(rect.x, rect.y));
+    await view.setSize(new LogicalSize(rect.width, rect.height));
   }
 
   /**
    * 刷新工作区内全部原生 Webview 的布局。
    */
   async function refreshWebviewBounds() {
-    await refreshActiveWebviewBounds();
+    await refreshAllProviderWebviewBounds();
     await refreshCollapsedControlBounds();
   }
 

@@ -40,6 +40,12 @@
 16. `scripts/run-tauri.mjs` 是跨平台入口脚本，必须使用 Node 的 `path.delimiter` 处理 `PATH`，不能再把分隔符写死成 Windows 的 `;`，否则会破坏 macOS / Linux 的打包环境。
 17. 界面语言当前支持 `zh-CN` 和 `en-US` 两种，并通过 `preferences.language` 持久化；新增用户可见文案时，优先补到 `src/lib/i18n.ts`，不要在组件里再写死字符串。
 18. 内置 provider 的名称与描述已经改成按语言生成，调用 `getProviderCatalog` / `getProviderById` 时必须传入当前语言，避免壳层标题与选择页出现中英不一致。
+19. 子 `Webview` 的位置和尺寸必须与前端 DOM 一样按“逻辑像素 / CSS 像素”计算；`window.innerSize()` 返回物理像素时要先结合 `scaleFactor()` 转成 logical，再传给 `LogicalPosition` / `LogicalSize`，否则在高 DPI 或多分辨率下会出现头部裁切、宽度溢出和页面横向偏移。
+20. 启动阶段全局快捷键注册失败不能阻塞 Vue 挂载；冲突应降级为前端提示，并在用户确认后自动跳转到设置页重新配置。
+21. Windows 机器执行 `pnpm tauri ...` 前必须保证 `rustup` 已安装并配置默认 toolchain；如果 `rustup show` 显示 `no active toolchain`，先执行 `rustup default stable`。
+22. `scripts/run-tauri.mjs` 里补 PATH 时不能写死 `C:\\Users\\admin\\.cargo\\bin` 这类用户目录，必须基于当前用户 home 目录动态拼接，否则换 Windows 账户后会重新出现 `cargo metadata` 启动失败。
+23. 若 `pnpm tauri dev` 报 `Port 1420 is already in use`，优先检查是否有本仓库残留的 `vite` / `tauri dev` / `cargo run` 进程；当前 dev 端口是固定 `1420` 且 `strictPort = true`，所以不会自动换端口。
+24. `src-tauri/tauri.conf.json` 的 `beforeDevCommand` 现在不是直接 `pnpm dev`，而是 `node scripts/run-vite-dev.mjs`；Tauri 在当前仓库根目录执行这个命令，不是以 `src-tauri/` 为相对基准。该脚本会优先复用当前仓库已经运行在 `1420` 上的 Vite dev server，避免二次执行 `pnpm tauri dev` 时因固定端口冲突而直接失败。
 
 ## 当前实现结构
 

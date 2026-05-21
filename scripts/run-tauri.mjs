@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process'
 import { delimiter } from 'node:path'
 import process from 'node:process'
+import { homedir } from 'node:os'
 
 /**
  * 为 Tauri CLI 补齐 Windows 常见工具链路径，避免新终端里找不到 cargo / makensis。
@@ -12,7 +13,7 @@ function createEnv() {
 
   if (process.platform === 'win32') {
     prependEntries.push(
-      'C:\\Users\\admin\\.cargo\\bin',
+      `${homedir()}\\.cargo\\bin`,
       'C:\\Program Files (x86)\\NSIS',
       'C:\\Program Files (x86)\\NSIS\\Bin',
     )

@@ -11,11 +11,69 @@ import { ref } from "vue";
 import { translate } from "../lib/i18n";
 import { usePreferencesStore } from "./preferences";
 
+const DEFAULT_SHORTCUT = "Shift+Alt+W";
+
 /**
  * 全局快捷键 store，负责注册、替换与切换主窗口显示状态。
  */
 export const useHotkeyStore = defineStore("hotkey", () => {
   const activeShortcut = ref<string | null>(null);
+  const startupConflictShortcut = ref<string | null>(null);
+  const startupConflictMessage = ref("");
+
+  /**
+   * 判断错误是否由快捷键冲突引起。
+   */
+  function isShortcutConflictError(error: unknown) {
+    if (!(error instanceof Error)) {
+      return false;
+    }
+
+    const normalizedMessage = error.message.toLowerCase();
+    return (
+      normalizedMessage.includes("already registered") ||
+      normalizedMessage.includes("already in use") ||
+      normalizedMessage.includes("hotkey is already registered") ||
+      normalizedMessage.includes("accelerator is already registered")
+    );
+  }
+
+  /**
+   * 构建启动阶段快捷键冲突提示。
+   */
+  function buildStartupConflictMessage(shortcut: string, language: string) {
+    const isChinese = language === "zh-CN";
+
+    if (shortcut === DEFAULT_SHORTCUT) {
+      return isChinese
+        ? `默认快捷键 ${shortcut} 与系统或其他软件冲突。点击确定后将自动跳转到快捷键设置页，请重新设置。`
+        : `The default shortcut ${shortcut} conflicts with the system or another app. Click OK to open shortcut settings and choose a new one.`;
+    }
+
+    return isChinese
+      ? `已保存的快捷键 ${shortcut} 与系统或其他软件冲突。点击确定后将自动跳转到快捷键设置页，请重新设置。`
+      : `The saved shortcut ${shortcut} conflicts with the system or another app. Click OK to open shortcut settings and choose a new one.`;
+  }
+
+  /**
+   * 记录启动阶段的快捷键冲突，但不阻塞应用启动。
+   */
+  function markStartupConflict(shortcut: string) {
+    const preferences = usePreferencesStore();
+    startupConflictShortcut.value = shortcut;
+    startupConflictMessage.value = buildStartupConflictMessage(
+      shortcut,
+      preferences.language,
+    );
+  }
+
+  /**
+   * 清空启动阶段快捷键冲突状态。
+   */
+  function clearStartupConflict() {
+    startupConflictShortcut.value = null;
+    startupConflictMessage.value = "";
+  }
 
   /**
    * 切换应用显示状态。
@@ -45,6 +103,7 @@ export const useHotkeyStore = defineStore("hotkey", () => {
       activeShortcut.value === shortcut &&
       (await isRegistered(shortcut))
     ) {
+      clearStartupConflict();
       return;
     }
 
@@ -59,6 +118,7 @@ export const useHotkeyStore = defineStore("hotkey", () => {
     });
 
     activeShortcut.value = shortcut;
+    clearStartupConflict();
   }
 
   /**
@@ -66,7 +126,17 @@ export const useHotkeyStore = defineStore("hotkey", () => {
    */
   async function init() {
     const preferences = usePreferencesStore();
-    await registerShortcut(preferences.shortcut);
+
+    try {
+      await registerShortcut(preferences.shortcut);
+    } catch (error) {
+      if (isShortcutConflictError(error)) {
+        markStartupConflict(preferences.shortcut);
+        return;
+      }
+
+      throw error;
+    }
   }
 
   /**
@@ -77,6 +147,7 @@ export const useHotkeyStore = defineStore("hotkey", () => {
 
     if (activeShortcut.value === nextShortcut) {
       await preferences.setShortcut(nextShortcut);
+      clearStartupConflict();
       return;
     }
 
@@ -108,6 +179,7 @@ export const useHotkeyStore = defineStore("hotkey", () => {
 
     activeShortcut.value = nextShortcut;
     await preferences.setShortcut(nextShortcut);
+    clearStartupConflict();
   }
 
   /**
@@ -120,9 +192,12 @@ export const useHotkeyStore = defineStore("hotkey", () => {
 
   return {
     activeShortcut,
+    startupConflictShortcut,
+    startupConflictMessage,
     init,
     updateShortcut,
     toggleAppVisibility,
     dispose,
+    clearStartupConflict,
   };
 });

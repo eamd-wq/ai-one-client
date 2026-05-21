@@ -23,7 +23,11 @@ async function bootstrap() {
   app.use(router);
 
   await preferences.init();
-  await hotkey.init();
+  try {
+    await hotkey.init();
+  } catch (error) {
+    console.error("Failed to initialize hotkey.", error);
+  }
 
   app.mount("#app");
 }
