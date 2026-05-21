@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process'
+import { delimiter } from 'node:path'
 import process from 'node:process'
 
 /**
@@ -6,7 +7,7 @@ import process from 'node:process'
  */
 function createEnv() {
   const env = { ...process.env }
-  const pathEntries = (env.PATH ?? '').split(';').filter(Boolean)
+  const pathEntries = (env.PATH ?? '').split(delimiter).filter(Boolean)
   const prependEntries = []
 
   if (process.platform === 'win32') {
@@ -17,7 +18,7 @@ function createEnv() {
     )
   }
 
-  env.PATH = [...prependEntries, ...pathEntries].join(';')
+  env.PATH = [...prependEntries, ...pathEntries].join(delimiter)
   return env
 }
 

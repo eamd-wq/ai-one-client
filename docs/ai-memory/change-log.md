@@ -11,6 +11,14 @@
   - 展开入口改为独立本地子 `Webview`，避免给远程 AI 页面开放额外 IPC 权限。
   - `pnpm typecheck`、`pnpm lint`、`pnpm build` 与 `pnpm tauri build --bundles nsis` 已全部通过。
 
+## 2026-05-21 - 补齐 macOS 兼容配置并确认 Windows 安装包仍可产出
+
+- **改动**：将 `src-tauri/tauri.conf.json` 补充为 `app.macOSPrivateApi = true`，以支持透明子 `Webview` 在 macOS 上工作；同时修复 `scripts/run-tauri.mjs` 中写死的 Windows `PATH` 分隔符，改为 `node:path` 的 `delimiter`；随后重新完成 `pnpm tauri build --bundles nsis`。
+- **原因**：当前收起态悬浮控件依赖透明子 `Webview`，这在 macOS 上需要私有 API；而仓库内的 Tauri 包装脚本若继续写死 `;`，会直接破坏 macOS 打包环境变量。
+- **影响**：
+  - 代码层面对 macOS 的结构性兼容性已补齐，但 `.app` / `.dmg` 仍需在 Mac 机器上实际打包。
+  - Windows 安装包仍可正常生成，产物路径保持不变。
+
 ## 2026-05-21 - 完成 Windows NSIS 安装包打包闭环
 
 - **改动**：确认并复用本机已安装的 NSIS，完成 `pnpm tauri build --bundles nsis` release 打包，成功生成 `AIClientCore_0.1.0_x64-setup.exe`。
