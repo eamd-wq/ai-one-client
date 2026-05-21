@@ -1,0 +1,62 @@
+:root {
+  color-scheme: light;
+  --app-bg: #efe6d4;
+  --app-bg-elevated: rgba(255, 250, 242, 0.72);
+  --app-bg-strong: rgba(255, 249, 240, 0.9);
+  --app-border: rgba(96, 74, 40, 0.14);
+  --app-text: #24180f;
+  --app-text-soft: rgba(36, 24, 15, 0.62);
+  --app-accent: #bb5a31;
+  --app-accent-soft: rgba(187, 90, 49, 0.14);
+  --app-shadow: 0 24px 80px rgba(85, 54, 22, 0.14);
+  --app-surface-gradient:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.9), transparent 32%),
+    radial-gradient(circle at bottom right, rgba(201, 108, 53, 0.12), transparent 28%),
+    linear-gradient(135deg, #f3ead8 0%, #eadfc9 100%);
+  font-family: "Manrope", sans-serif;
+  color: var(--app-text);
+  background: var(--app-bg);
+  text-rendering: optimizeLegibility;
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+:root.dark {
+  color-scheme: dark;
+  --app-bg: #171311;
+  --app-bg-elevated: rgba(31, 25, 21, 0.76);
+  --app-bg-strong: rgba(33, 27, 22, 0.96);
+  --app-border: rgba(245, 219, 190, 0.1);
+  --app-text: #f7ecdd;
+  --app-text-soft: rgba(247, 236, 221, 0.62);
+  --app-accent: #f09d58;
+  --app-accent-soft: rgba(240, 157, 88, 0.18);
+  --app-shadow: 0 24px 80px rgba(0, 0, 0, 0.38);
+  --app-surface-gradient:
+    radial-gradient(circle at top left, rgba(255, 208, 161, 0.1), transparent 24%),
+    radial-gradient(circle at bottom right, rgba(144, 75, 46, 0.18), transparent 30%),
+    linear-gradient(135deg, #171311 0%, #1d1714 100%);
+}
+
+html,
+body,
+#app {
+  margin: 0;
+  min-height: 100%;
+  background: var(--app-bg);
+}
+
+body {
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+button,
+input {
+  font: inherit;
+}

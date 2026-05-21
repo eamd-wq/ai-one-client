@@ -1,0 +1,4 @@
+interface:
+  display_name: Tauri Vue3 Best Practices
+  short_description: Scaffold and build Tauri Vue3 apps with safe window, WebView, and plugin patterns
+  default_prompt: Use $tauri-vue3-best-practices to create or review a Tauri v2 + Vue3 + TypeScript desktop app with strong security, state, and window-management conventions.

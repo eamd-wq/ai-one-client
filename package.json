@@ -1,0 +1,45 @@
+{
+  "name": "aiclientcore",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "vue-tsc --noEmit",
+    "lint": "eslint . --ext .ts,.vue",
+    "test": "vitest run",
+    "tauri": "node scripts/run-tauri.mjs"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-global-shortcut": "^2.3.1",
+    "@tauri-apps/plugin-opener": "^2",
+    "@tauri-apps/plugin-store": "^2.4.3",
+    "@unocss/reset": "^66.6.8",
+    "@vueuse/core": "^14.3.0",
+    "pinia": "^3.0.4",
+    "vue": "^3.5.13",
+    "vue-router": "^5.0.7",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@tauri-apps/cli": "^2",
+    "@typescript-eslint/eslint-plugin": "^8.59.4",
+    "@typescript-eslint/parser": "^8.59.4",
+    "@unocss/vite": "^66.6.8",
+    "@vitejs/plugin-vue": "^5.2.1",
+    "eslint": "^9.39.1",
+    "eslint-plugin-vue": "^10.9.1",
+    "prettier": "^3.8.3",
+    "typescript": "~5.6.2",
+    "typescript-eslint": "^8.59.4",
+    "unocss": "^66.6.8",
+    "vite": "^6.0.3",
+    "vitest": "^4.1.7",
+    "vue-eslint-parser": "^10.4.0",
+    "vue-tsc": "^2.1.10"
+  }
+}

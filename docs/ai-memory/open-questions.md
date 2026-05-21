@@ -1,23 +1,21 @@
 # Open Questions
 
-## 待决策
+## 待确认
 
-1. **WebView 方案**：Tauri v2 中加载外部 AI 页面，使用 `<iframe>` 还是多个独立 WebView 窗口？`<iframe>` 更简单但可能被某些网站通过 `X-Frame-Options` 阻止；独立 WebView 更灵活但内存占用更高。建议先用 `<iframe>` 尝试，被阻止的网站使用独立 WebView 兜底。
-
-2. **用户数据持久化**：本地存储方案用 Tauri 的 `tauri-plugin-store` 还是直接用 `localStorage`？`tauri-plugin-store` 更可靠但需要额外插件；`localStorage` 简单但可能在 WebView 清理时丢失。
-
-3. **登录状态跨页面保持**：如果多个 AI 页面需要保持登录状态，是否需要独立的 cookie 存储分区？Tauri 默认共享 WebView 的 cookie 存储。
+1. 远程 AI 视图是否需要支持“始终置顶”能力；当前需求未要求，默认先不实现。
+2. 是否需要记录并恢复多显示器环境下的窗口位置；当前先保证基础显示 / 隐藏与聚焦。
+3. 是否需要代理设置入口；部分国际 AI 服务可能依赖特定网络环境，但当前设置页范围未包含该项。
 
 ## 待观察
 
-1. 当前方案先采用手工维护的 markdown 记忆文件，后续可再评估是否需要脚本化辅助，例如自动追加 change log 模板或校验必填项。
-2. 需要在后续几次真实开发任务里观察：
-   - `change-log.md` 的粒度是否偏粗或偏细
-   - `product-context.md` 与 `engineering-context.md` 是否出现职责重叠
-   - `AGENTS.md` 是否足以让不同 agent 在仓库入口阶段就读取这套记忆
+1. 某些 AI 网站未来可能限制 WebView 或脚本注入行为，需要在真实运行后观察兼容性。
+2. 远程页面主题同步是否对主流目标站点足够有效，需要在 DeepSeek、豆包、ChatGPT、Gemini 上分别验证。
+3. 如果多个远程子 Webview 常驻后的内存占用偏高，后续可能需要加入回收策略。
+4. 如果后续改为交付 `MSI`，需要补验证 WiX 安装与下载链路；当前 `NSIS` 已满足 Windows 主分发需求。
 
-## 待确认
+## 暂定方案
 
-1. 是否需要支持窗口置顶功能？
-2. 是否需要支持多显示器场景下的窗口位置记忆？
-3. 是否需要支持代理设置（部分 AI 服务可能需要特殊网络环境访问）？
+1. 当前优先使用主窗口内的独立子 `Webview` 承载 AI 页面，避免 `iframe` 被 `X-Frame-Options` / `CSP` 阻止。
+2. 当前优先用 `@tauri-apps/plugin-store` 保存用户偏好与上次选择，避免依赖浏览器级临时存储。
+3. 当前默认只让主窗口获得 capability 权限，远程 AI 页面不直接接触 Tauri API。
+4. 当前 Windows 交付默认使用 `NSIS` 安装包；`MSI` 作为后续可选补充，而不是当前阻塞项。
