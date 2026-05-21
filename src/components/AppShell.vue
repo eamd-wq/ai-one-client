@@ -164,7 +164,7 @@ watch(
       class="pointer-events-none absolute inset-x-0 top-[-6rem] h-72 bg-[radial-gradient(circle,rgba(255,255,255,0.28),transparent_65%)]"
     />
 
-    <div class="relative mx-auto flex min-h-screen max-w-[1600px] flex-col">
+    <div class="relative flex min-h-screen w-full flex-col">
       <header
         class="overflow-hidden border-[var(--app-border)] bg-[var(--app-bg-elevated)] shadow-[var(--app-shadow)] backdrop-blur-2xl transition-[height,border-color,box-shadow] duration-200"
         :class="isHeaderCollapsed ? 'h-0 border-b border-transparent' : 'h-[60px] border-b'"

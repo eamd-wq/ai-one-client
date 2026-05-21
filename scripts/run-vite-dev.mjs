@@ -1,6 +1,13 @@
 import { spawn } from 'node:child_process'
 import process from 'node:process'
 
+const {
+  AbortController,
+  console,
+  fetch,
+  clearTimeout,
+  setTimeout,
+} = globalThis
 const DEV_SERVER_PORT = 1420
 const DEV_SERVER_URLS = [
   `http://127.0.0.1:${DEV_SERVER_PORT}`,
@@ -13,7 +20,7 @@ const DEV_SERVER_URLS = [
  */
 async function fetchText(url) {
   const controller = new AbortController()
-  const timeout = globalThis.setTimeout(() => controller.abort(), 1500)
+  const timeout = setTimeout(() => controller.abort(), 1500)
 
   try {
     const response = await fetch(url, {
@@ -28,7 +35,7 @@ async function fetchText(url) {
   } catch {
     return null
   } finally {
-    globalThis.clearTimeout(timeout)
+    clearTimeout(timeout)
   }
 }
 
