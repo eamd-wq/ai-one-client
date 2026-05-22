@@ -2,6 +2,14 @@
 
 按时间倒序记录重要 AI 改动，重点保留“改了什么、为什么改、影响是什么”。
 
+## 2026-05-22 - README 补充 Win / macOS 打包方式与 CPU 架构约束
+
+- **改动**：重写 `README.md` 为干净的中英双语文档，补充 Windows `NSIS` 打包命令、当前已验证产物路径、macOS 在 Mac 机器上的 `.app` / `.dmg` 构建方式，以及 `x64 / ARM64 / universal-apple-darwin` 的架构说明；同时更新 `docs/ai-memory/README.md` 的项目速记。
+- **原因**：用户要求把 Win 和 macOS 的打包方式写入 README，并明确确认是否需要按不同 CPU 架构分别打包。
+- **影响**：
+  - 仓库文档现在明确区分了“Windows 可直接产包”和“macOS 必须在 Mac 上构建”的边界。
+  - 后续发版时可以直接参考 README 中的命令和产物目录，减少重复确认成本。
+
 ## 2026-05-21 - 全局禁用右键菜单并覆盖远程子 Webview
 
 - **改动**：在 `src/main.ts` 禁用主壳层右键，在 `src/overlay-control.ts` 禁用收起态悬浮控件右键，并在 `src-tauri/src/lib.rs` 通过 `Builder::on_page_load` 给所有 Webview 注入禁右键脚本。
