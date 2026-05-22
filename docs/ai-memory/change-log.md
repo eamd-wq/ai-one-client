@@ -1,5 +1,13 @@
 # Change Log
 
+## 2026-05-22 - Fix collapsed overlay intercepting clicks on other pages
+
+- Removed the temporary focus-based workaround in `src/components/AppShell.vue`.
+- Normalized the collapsed control `WebviewWindow` in `src/stores/workspace.ts` so it is no longer created as `alwaysOnTop`, and existing instances are forced back to `setAlwaysOnTop(false)` plus `setIgnoreCursorEvents(true)`.
+- Updated `src/overlay-control.ts` so the transparent overlay defaults to click-through and only the round button itself remains interactive.
+- This regression happened because the transparent `WebviewWindow` could stay above normal content and keep owning mouse events across the whole strip.
+- Window-layer behavior and capability changes require a full Tauri process restart for validation; frontend HMR alone is not enough.
+
 按时间倒序记录重要 AI 改动，重点保留“改了什么、为什么改、影响是什么”。
 
 ## 2026-05-22 - README 补充 Win / macOS 打包方式与 CPU 架构约束

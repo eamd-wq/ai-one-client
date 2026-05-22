@@ -19,7 +19,7 @@ let isPointerDown = false;
 let isHoveringButton = false;
 let rafId: number | null = null;
 let pendingLeft = 0;
-let isInteractive = true;
+let isInteractive = false;
 let isHoverPolling = false;
 
 const buttonElement = getButtonElement();
@@ -69,6 +69,7 @@ async function restoreControlLeft() {
   const centeredLeft = Math.round((availableWidth - CONTROL_SIZE) / 2);
   currentLeft = clampLeft(savedLeft ?? centeredLeft);
   commitButtonPosition(currentLeft);
+  await setInteractive(false);
 }
 
 function renderButtonLeft(nextLeft: number) {
@@ -267,6 +268,7 @@ colorSchemeMedia.addEventListener("change", applyThemePalette);
 document.documentElement.style.background = "transparent";
 document.documentElement.style.width = "100%";
 document.documentElement.style.height = "100%";
+document.documentElement.style.pointerEvents = "none";
 document.body.style.margin = "0";
 document.body.style.background = "transparent";
 document.body.style.overflow = "hidden";
@@ -275,6 +277,7 @@ document.body.style.webkitUserSelect = "none";
 document.body.style.width = "100vw";
 document.body.style.height = "44px";
 document.body.style.position = "relative";
+document.body.style.pointerEvents = "none";
 
 buttonElement.style.width = "28px";
 buttonElement.style.height = "28px";
@@ -291,6 +294,7 @@ buttonElement.style.left = `${CONTROL_MARGIN}px`;
 buttonElement.style.top = `${CONTROL_TOP}px`;
 buttonElement.style.cursor = "pointer";
 buttonElement.style.outline = "none";
+buttonElement.style.pointerEvents = "auto";
 buttonElement.style.transition =
   "transform 120ms ease, border-color 120ms ease, color 120ms ease, background 120ms ease";
 

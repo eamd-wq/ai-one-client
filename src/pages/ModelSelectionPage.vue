@@ -59,6 +59,14 @@ async function saveCustomProvider(payload: { name: string; url: string }) {
 }
 
 /**
+ * 删除自定义 AI 渠道。
+ */
+async function removeCustomProvider(providerId: string) {
+  await workspace.removeProvider(providerId);
+  await preferences.removeCustomProvider(providerId);
+}
+
+/**
  * 进入指定 AI 页面。
  */
 async function selectProvider(providerId: string) {
@@ -103,6 +111,7 @@ async function selectProvider(providerId: string) {
             :key="provider.id"
             :provider="provider"
             @select="selectProvider(provider.id)"
+            @remove="removeCustomProvider"
           />
         </div>
       </div>

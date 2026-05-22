@@ -34,6 +34,34 @@ const child = spawn(command[0], command[1], {
   stdio: 'inherit',
 })
 
+let isShuttingDown = false
+
+/**
+ * 在终端结束前尽量优雅关闭 tauri 子进程，减少 WebView2 异常退出噪音。
+ */
+function shutdownChild(signal = 'SIGTERM') {
+  if (isShuttingDown || child.killed) {
+    return
+  }
+
+  isShuttingDown = true
+
+  if (process.platform === 'win32') {
+    child.kill()
+    return
+  }
+
+  child.kill(signal)
+}
+
+process.on('SIGINT', () => {
+  shutdownChild('SIGINT')
+})
+
+process.on('SIGTERM', () => {
+  shutdownChild('SIGTERM')
+})
+
 child.on('exit', (code, signal) => {
   if (signal) {
     process.kill(process.pid, signal)

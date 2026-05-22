@@ -162,6 +162,24 @@ export const usePreferencesStore = defineStore("preferences", () => {
   }
 
   /**
+   * 删除自定义渠道，并收敛相关偏好状态。
+   */
+  async function removeCustomProvider(providerId: string) {
+    customProviders.value = customProviders.value.filter(
+      (provider) => provider.id !== providerId,
+    );
+    await appStore.set("customProviders", customProviders.value);
+
+    if (lastProviderId.value === providerId) {
+      await setLastProviderId(null);
+    }
+
+    if (camp.value === "custom" && customProviders.value.length === 0) {
+      await setCamp(defaultPreferences.camp);
+    }
+  }
+
+  /**
    * 获取默认窗口尺寸，供首次子视图布局时参考。
    */
   async function getWorkspaceBounds() {
@@ -210,6 +228,7 @@ export const usePreferencesStore = defineStore("preferences", () => {
     setHeaderCollapsed,
     setCollapsedControlLeft,
     addCustomProvider,
+    removeCustomProvider,
     getWorkspaceBounds,
   };
 });

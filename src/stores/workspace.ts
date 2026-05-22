@@ -123,6 +123,16 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   }
 
   /**
+   * 归一化收起态悬浮控件窗口，避免旧实例残留置顶或拦截鼠标事件。
+   */
+  async function normalizeCollapsedControlWindow(view: WebviewWindow) {
+    await Promise.allSettled([
+      view.setAlwaysOnTop(false),
+      view.setIgnoreCursorEvents(true),
+    ]);
+  }
+
+  /**
    * 隐藏全部已创建子 Webview。
    */
   async function hideAllWebviews() {
@@ -192,6 +202,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   async function ensureCollapsedControlWebview() {
     const existing = await getCollapsedControlWebview();
     if (existing) {
+      await normalizeCollapsedControlWindow(existing);
       return existing;
     }
 
@@ -208,7 +219,6 @@ export const useWorkspaceStore = defineStore("workspace", () => {
       decorations: false,
       shadow: false,
       skipTaskbar: true,
-      alwaysOnTop: true,
       visible: false,
       zoomHotkeysEnabled: false,
       dragDropEnabled: false,
@@ -217,6 +227,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     await new Promise<void>((resolve, reject) => {
       void view.once("tauri://created", async () => {
         try {
+          await normalizeCollapsedControlWindow(view);
           resolve();
         } catch (error) {
           reject(error);
@@ -251,6 +262,26 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   }
 
   /**
+   * 删除指定 provider 对应的运行态资源。
+   */
+  async function removeProvider(providerId: string) {
+    const view = await getExistingWebview(providerId);
+    if (view) {
+      await view.close();
+    }
+
+    createdWebviews.value = createdWebviews.value.filter((item) => item !== providerId);
+
+    if (activeProviderId.value === providerId) {
+      activeProviderId.value = null;
+
+      if (currentPane.value === "provider") {
+        await showSelection();
+      }
+    }
+  }
+
+  /**
    * 切回选择页。
    */
   async function showSelection() {
@@ -272,6 +303,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   async function showCollapsedControl() {
     const view = await ensureCollapsedControlWebview();
 
+    await normalizeCollapsedControlWindow(view);
     await refreshCollapsedControlBounds();
     await view.show();
   }
@@ -313,9 +345,20 @@ export const useWorkspaceStore = defineStore("workspace", () => {
    */
   async function openInitialView() {
     const preferences = usePreferencesStore();
+
     if (preferences.lastProviderId) {
-      await openProvider(preferences.lastProviderId);
-      return;
+      const provider = getProviderById(
+        preferences.lastProviderId,
+        preferences.language,
+        preferences.customProviders,
+      );
+
+      if (provider) {
+        await openProvider(preferences.lastProviderId);
+        return;
+      }
+
+      await preferences.setLastProviderId(null);
     }
 
     await showSelection();
@@ -397,6 +440,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     createdWebviews,
     shellTopOffset,
     openProvider,
+    removeProvider,
     showSelection,
     showSettings,
     openInitialView,
