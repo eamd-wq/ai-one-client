@@ -1,21 +1,26 @@
+import { LogicalPosition } from "@tauri-apps/api/dpi";
 import { emitTo } from "@tauri-apps/api/event";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { LazyStore } from "@tauri-apps/plugin-store";
 
 const MOVE_THRESHOLD = 3;
-const CONTROL_SIZE = 34;
+const CONTROL_SIZE = 28;
 const CONTROL_MARGIN = 8;
 const appStore = new LazyStore("app-preferences.json");
 
 let startX = 0;
 let dragged = false;
 let currentLeft = 0;
+let availableWidth = 320;
+let isDragging = false;
+let rafId: number | null = null;
+let pendingOverlayLeft = 0;
 
 const buttonElement = getButtonElement();
 const colorSchemeMedia = globalThis.window.matchMedia("(prefers-color-scheme: dark)");
+const currentOverlayWebview = getCurrentWebview();
 
-/**
- * 在悬浮展开控件 Webview 中禁用右键菜单。
- */
 function disableOverlayContextMenu() {
   document.addEventListener(
     "contextmenu",
@@ -26,9 +31,6 @@ function disableOverlayContextMenu() {
   );
 }
 
-/**
- * 获取悬浮控件按钮实例。
- */
 function getButtonElement() {
   const element = document.querySelector<HTMLButtonElement>("#collapsed-control");
   if (!element) {
@@ -38,32 +40,28 @@ function getButtonElement() {
   return element;
 }
 
-/**
- * 向主壳层发送展开请求。
- */
 async function requestExpand() {
   await emitTo({ kind: "Webview", label: "main" }, "collapsed-control:expand-request");
 }
 
-/**
- * 持久化当前悬浮控件的水平位置。
- */
 async function persistControlLeft() {
   await appStore.set("collapsedControlLeft", currentLeft);
+  await emitTo(
+    { kind: "Webview", label: "main" },
+    "collapsed-control:position-commit",
+    currentLeft,
+  );
 }
 
-/**
- * 开始记录拖动状态。
- */
 function handlePointerDown(event: PointerEvent) {
   startX = event.clientX;
   dragged = false;
+  isDragging = true;
+  buttonElement.style.transition =
+    "border-color 120ms ease, color 120ms ease, background 120ms ease";
   buttonElement.setPointerCapture(event.pointerId);
 }
 
-/**
- * 只发送 X 轴拖动增量，不处理 Y 轴移动。
- */
 function handlePointerMove(event: PointerEvent) {
   if (!buttonElement.hasPointerCapture(event.pointerId)) {
     return;
@@ -79,23 +77,21 @@ function handlePointerMove(event: PointerEvent) {
   }
 
   startX = event.clientX;
-  applyControlLeft(currentLeft + deltaX);
+  applyOverlayLeft(currentLeft + deltaX);
 }
 
-/**
- * 释放拖动捕获。
- */
 function handlePointerUp(event: PointerEvent) {
   if (buttonElement.hasPointerCapture(event.pointerId)) {
     buttonElement.releasePointerCapture(event.pointerId);
   }
 
+  isDragging = false;
+  buttonElement.style.transition =
+    "transform 120ms ease, border-color 120ms ease, color 120ms ease, background 120ms ease";
+  commitOverlayPosition();
   void persistControlLeft();
 }
 
-/**
- * 未发生拖动时点击即展开头部。
- */
 function handleClick() {
   if (dragged) {
     dragged = false;
@@ -105,47 +101,69 @@ function handleClick() {
   void requestExpand();
 }
 
-/**
- * 约束圆形按钮只能在顶部透明条内横向移动。
- */
 function clampLeft(nextLeft: number) {
-  const maxLeft = Math.max(
-    globalThis.window.innerWidth - CONTROL_SIZE - CONTROL_MARGIN,
-    CONTROL_MARGIN,
-  );
+  const maxLeft = Math.max(availableWidth - CONTROL_SIZE - CONTROL_MARGIN, CONTROL_MARGIN);
 
   return Math.min(Math.max(nextLeft, CONTROL_MARGIN), maxLeft);
 }
 
-/**
- * 立即更新按钮水平位置，保证拖拽跟手。
- */
-function applyControlLeft(nextLeft: number) {
+function applyOverlayLeft(nextLeft: number) {
   currentLeft = clampLeft(nextLeft);
-  buttonElement.style.left = `${currentLeft}px`;
+  pendingOverlayLeft = currentLeft;
+
+  if (rafId !== null) {
+    return;
+  }
+
+  rafId = globalThis.requestAnimationFrame(() => {
+    rafId = null;
+    void currentOverlayWebview.setPosition(
+      new LogicalPosition(Math.max(pendingOverlayLeft - CONTROL_MARGIN, 0), 0),
+    );
+  });
 }
 
-/**
- * 初始化顶部透明条与圆形按钮位置。
- */
+function commitOverlayPosition() {
+  if (rafId !== null) {
+    globalThis.cancelAnimationFrame(rafId);
+    rafId = null;
+  }
+
+  void currentOverlayWebview.setPosition(
+    new LogicalPosition(Math.max(currentLeft - CONTROL_MARGIN, 0), 0),
+  );
+}
+
 function setupOverlayLayout() {
-  const centeredLeft = Math.round((globalThis.window.innerWidth - CONTROL_SIZE) / 2);
-  applyControlLeft(currentLeft || centeredLeft);
+  const centeredLeft = Math.round((availableWidth - CONTROL_SIZE) / 2);
+  currentLeft = clampLeft(currentLeft || centeredLeft);
+
+  if (isDragging) {
+    applyOverlayLeft(currentLeft);
+    return;
+  }
+
+  commitOverlayPosition();
 }
 
-/**
- * 从持久化存储恢复悬浮控件位置。
- */
+async function syncAvailableWidth() {
+  const currentWindow = getCurrentWindow();
+  const [size, scaleFactor] = await Promise.all([
+    currentWindow.innerSize(),
+    currentWindow.scaleFactor(),
+  ]);
+
+  availableWidth = Math.max(Math.round(size.toLogical(scaleFactor).width), 320);
+  setupOverlayLayout();
+}
+
 async function restoreControlLeft() {
   await appStore.init();
   const savedLeft = await appStore.get<number | null>("collapsedControlLeft");
   currentLeft = savedLeft ?? 0;
-  setupOverlayLayout();
+  await syncAvailableWidth();
 }
 
-/**
- * 获取与主应用一致的浅色/深色主题色板。
- */
 function getThemePalette() {
   if (colorSchemeMedia.matches) {
     return {
@@ -170,9 +188,6 @@ function getThemePalette() {
   } as const;
 }
 
-/**
- * 同步悬浮按钮的主题配色。
- */
 function applyThemePalette() {
   const palette = getThemePalette();
 
@@ -194,7 +209,6 @@ buttonElement.addEventListener("pointermove", handlePointerMove);
 buttonElement.addEventListener("pointerup", handlePointerUp);
 buttonElement.addEventListener("pointercancel", handlePointerUp);
 buttonElement.addEventListener("click", handleClick);
-globalThis.window.addEventListener("resize", setupOverlayLayout);
 colorSchemeMedia.addEventListener("change", applyThemePalette);
 
 document.documentElement.style.background = "transparent";
@@ -221,6 +235,7 @@ buttonElement.style.color = "#fff6ec";
 buttonElement.style.display = "grid";
 buttonElement.style.placeItems = "center";
 buttonElement.style.position = "absolute";
+buttonElement.style.left = `${CONTROL_MARGIN}px`;
 buttonElement.style.top = "8px";
 buttonElement.style.cursor = "pointer";
 buttonElement.style.pointerEvents = "auto";
@@ -269,3 +284,6 @@ if (secondaryLine) {
 disableOverlayContextMenu();
 applyThemePalette();
 void restoreControlLeft();
+void getCurrentWindow().onResized(() => {
+  void syncAvailableWidth();
+});

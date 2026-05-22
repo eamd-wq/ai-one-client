@@ -13,7 +13,9 @@ const SHELL_SIDE_PADDING = 0;
 const SHELL_BOTTOM_PADDING = 0;
 const CONTENT_INSET = 0;
 const COLLAPSED_CONTROL_LABEL = "overlay:collapsed-control";
-const COLLAPSED_CONTROL_OVERLAY_HEIGHT = 44;
+const COLLAPSED_CONTROL_OVERLAY_SIZE = 44;
+const COLLAPSED_CONTROL_BUTTON_SIZE = 28;
+const COLLAPSED_CONTROL_MARGIN = 8;
 
 type WebviewRect = {
   x: number;
@@ -72,12 +74,25 @@ export const useWorkspaceStore = defineStore("workspace", () => {
    */
   async function getCollapsedControlRect(): Promise<WebviewRect> {
     const size = await getWindowLogicalSize();
+    const preferences = usePreferencesStore();
+    const centeredLeft = Math.round(
+      (Math.round(size.width) - COLLAPSED_CONTROL_BUTTON_SIZE) / 2,
+    );
+    const preferredLeft = preferences.collapsedControlLeft ?? centeredLeft;
+    const maxLeft = Math.max(
+      Math.round(size.width) - COLLAPSED_CONTROL_BUTTON_SIZE - COLLAPSED_CONTROL_MARGIN,
+      COLLAPSED_CONTROL_MARGIN,
+    );
+    const clampedLeft = Math.min(
+      Math.max(preferredLeft, COLLAPSED_CONTROL_MARGIN),
+      maxLeft,
+    );
 
     return {
-      x: 0,
+      x: Math.max(clampedLeft - COLLAPSED_CONTROL_MARGIN, 0),
       y: 0,
-      width: Math.max(Math.round(size.width), 320),
-      height: COLLAPSED_CONTROL_OVERLAY_HEIGHT,
+      width: COLLAPSED_CONTROL_OVERLAY_SIZE,
+      height: COLLAPSED_CONTROL_OVERLAY_SIZE,
     };
   }
 

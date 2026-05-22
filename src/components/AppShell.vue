@@ -19,6 +19,7 @@ const { t } = useI18n();
 const isHeaderCollapsed = ref(false);
 const topOffsetAnimationFrame = ref<number | null>(null);
 const unlistenExpandRequest = ref<(() => void) | null>(null);
+const unlistenPositionCommit = ref<(() => void) | null>(null);
 
 const activeProviderName = computed(
   () => workspace.activeProvider?.name ?? t("appShell.currentAiFallback"),
@@ -153,6 +154,16 @@ onMounted(async () => {
       await expandHeader();
     },
   );
+
+  unlistenPositionCommit.value = await listen<number>(
+    "collapsed-control:position-commit",
+    async (event) => {
+      if (typeof event.payload === "number") {
+        await preferences.setCollapsedControlLeft(event.payload);
+        await workspace.refreshCollapsedControlBounds();
+      }
+    },
+  );
 });
 
 onBeforeUnmount(() => {
@@ -161,6 +172,10 @@ onBeforeUnmount(() => {
 
   if (unlistenExpandRequest.value) {
     void unlistenExpandRequest.value();
+  }
+
+  if (unlistenPositionCommit.value) {
+    void unlistenPositionCommit.value();
   }
 });
 
