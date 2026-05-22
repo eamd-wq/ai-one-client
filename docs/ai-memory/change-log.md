@@ -1,5 +1,44 @@
 # Change Log
 
+## 2026-05-23 - 修复托盘右键“打开面板”无效
+
+- **改动**：将 `src-tauri/src/lib.rs` 的托盘恢复链路从 `TrayIconBuilder` 局部回调收敛到 `tauri::Builder::on_menu_event` 与 `tauri::Builder::on_tray_icon_event`，统一通过 `handle_tray_menu_event()` / `handle_tray_icon_event()` 分发“打开面板 / 退出应用 / Windows 左键恢复”；同时把 `src/App.vue` 的 `handleRestoreFromTray()` 补齐为与快捷键恢复一致的 `unminimize + show + focus + overlay 同步` 链路。
+- **原因**：用户反馈托盘图标右键菜单里的“打开面板”点击无效，需要把事件监听改成更稳定、更集中的应用级处理方式。
+- **影响**：
+  - 托盘右键“打开面板”与“退出应用”现在都走同一条应用级 Rust 回调。
+  - Windows 左键恢复主窗口的逻辑也同步收敛到同一处分发，后续排查托盘交互更容易。
+  - 前端收到 `app:restore-from-tray` 事件后，会主动执行显示、取消最小化、聚焦和悬浮展开按钮同步，不再只做 overlay 显隐。
+  - `pnpm typecheck`、`pnpm lint`、`pnpm build` 与 `cargo check` 已通过；这类托盘回调改动需要完整重启 Tauri 进程后再验证，前端 HMR 不足以覆盖。
+
+## 2026-05-23 - 调整关闭确认面板布局并统一托盘菜单中文文案
+
+- **改动**：将 `src/App.vue` 的关闭确认面板改为“标题区右上角关闭 icon + 下方双主操作按钮 + 不再提示勾选”的布局，移除底部取消按钮，并让“缩小到托盘 / 关闭应用”两个按钮使用完全一致的样式；同时把 `src-tauri/src/lib.rs` 中托盘右键菜单的 `Show / Quit` 文案改为“打开面板 / 退出应用”。
+- **原因**：用户要求当前提示面板减少割裂感，去掉会强化默认选项的重点色，让两种关闭行为在视觉上保持公平选择。
+- **影响**：
+  - 关闭确认面板现在通过右上角关闭 icon 取消，视觉结构更集中。
+  - 两个主操作按钮不再根据当前默认行为使用强调色，避免给用户强引导。
+  - Windows 托盘右键菜单文案已统一为中文。
+  - `pnpm typecheck`、`pnpm lint`、`pnpm build` 与 `cargo check` 已通过。
+
+## 2026-05-22 - 新增关闭时托盘 / 退出分流与可记忆选择
+
+- **改动**：为 `preferences` 新增 `closeBehavior` 与 `closePromptEnabled` 持久化字段；`src/App.vue` 接入主窗口关闭拦截、自定义关闭提示框与“记住我的选择”；`src/pages/SettingsPage.vue` 新增关闭行为与是否继续询问配置；`src-tauri/src/lib.rs` 新增托盘 / 菜单栏图标、恢复主窗口事件和 `exit_application` 命令；`src-tauri/Cargo.toml` 为 `tauri` 打开 `tray-icon` feature。
+- **原因**：用户要求关闭软件时让用户选择“缩小到托盘”或“关闭应用”，默认缩小到托盘，并支持“不再提示”记忆；同时设置页也要能配置关闭行为，并兼容 Windows 与 macOS。
+- **影响**：
+  - 关闭主窗口时现在会弹出可记忆的关闭行为提示；勾选“不再提示”后，后续会直接按保存的行为执行。
+  - 设置页现在可以手动切换关闭行为，并重新开启“关闭前询问”。
+  - Windows / 当前开发机已通过 `pnpm typecheck`、`pnpm lint`、`pnpm build` 与 `cargo check`。
+  - 额外补装了 `aarch64-apple-darwin` / `x86_64-apple-darwin` target，并通过 `DOCS_RS=1 cargo check --target ...` 静态验证了本次 Rust 改动的 Apple 目标代码路径；但真正的 macOS 构建与运行表现仍需在 Mac 机器或具备完整 Objective-C / Apple 工具链的环境里确认。
+
+## 2026-05-22 - 关闭确认弹框弹起时临时隐藏 provider 子 Webview
+
+- **改动**：在 `src/stores/workspace.ts` 新增“为弹框临时隐藏 / 恢复 provider 视图”的方法，并在 `src/App.vue` 的关闭确认弹框打开、取消和选择托盘时接入这条链路。
+- **原因**：用户补充说明当前 provider 页面承载在层级高于主壳层的原生子 `Webview` 中，直接在主窗口 DOM 里弹确认框会被子 `Webview` 盖住。
+- **影响**：
+  - 关闭确认弹框出现时，当前 provider 子 `Webview` 和收起态悬浮按钮会先被临时隐藏，弹框可正常显示。
+  - 取消关闭后会恢复 provider 页面；选择“缩小到托盘”时，会先把 provider 恢复到后台状态，再隐藏主窗口，避免下次恢复只剩壳层没有网页。
+  - `pnpm typecheck`、`pnpm lint`、`pnpm build` 已通过。
+
 ## 2026-05-22 - 版本升级到 0.1.5 并重新产出 Windows NSIS 安装包
 
 - **改动**：将 `package.json`、`src-tauri/tauri.conf.json` 与 `src-tauri/Cargo.toml` 的版本号统一从 `0.1.4` 升到 `0.1.5`，并重新执行 `pnpm tauri build --bundles nsis`。

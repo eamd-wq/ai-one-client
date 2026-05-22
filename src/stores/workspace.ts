@@ -344,6 +344,48 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   }
 
   /**
+   * 为主壳层弹框临时隐藏当前 provider 视图与相关悬浮层，避免被更高层原生 Webview 盖住。
+   */
+  async function hideProviderSurfaceForDialog() {
+    if (currentPane.value !== "provider" || !activeProviderId.value) {
+      return false;
+    }
+
+    const view = await getExistingWebview(activeProviderId.value);
+    if (!view) {
+      return false;
+    }
+
+    await hideCollapsedControl();
+    await view.hide();
+
+    return true;
+  }
+
+  /**
+   * 恢复被主壳层弹框临时隐藏的 provider 视图。
+   */
+  async function restoreProviderSurfaceAfterDialog(options?: {
+    restoreCollapsedControl?: boolean;
+  }) {
+    if (currentPane.value !== "provider" || !activeProviderId.value) {
+      return;
+    }
+
+    const view = await getExistingWebview(activeProviderId.value);
+    if (!view) {
+      return;
+    }
+
+    await refreshProviderWebviewBounds(activeProviderId.value);
+    await view.show();
+
+    if (options?.restoreCollapsedControl ?? true) {
+      await syncCollapsedControlVisibilityWithMainWindow(true);
+    }
+  }
+
+  /**
    * 同步主题到已创建的子 Webview。
    */
   async function syncThemeToWebviews(theme: "light" | "dark") {
@@ -475,5 +517,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     showCollapsedControl,
     hideCollapsedControl,
     syncCollapsedControlVisibilityWithMainWindow,
+    hideProviderSurfaceForDialog,
+    restoreProviderSurfaceAfterDialog,
   };
 });

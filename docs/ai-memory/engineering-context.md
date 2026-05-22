@@ -53,6 +53,12 @@
 29. 快速切换 AI 页面的 provider 列表当前使用 `scrollbar-hidden` 样式类隐藏原生滚动条，但仍保留 `overflow-y-auto`；后续若继续调整该区域，避免把滚动条隐藏和滚动能力一起删掉。
 30. “禁用右键菜单”不能只在 Vue 主壳层里监听 `contextmenu`；远程 AI 页面运行在独立子 `Webview` 中，必须额外在 `src-tauri/src/lib.rs` 里通过 `Builder::on_page_load` 给每个 Webview 注入禁右键脚本，悬浮展开控件 `overlay-control.ts` 也要单独拦截。
 31. 收起态展开按钮当前承载在独立 `WebviewWindow` 中，它不会随主窗口 `hide()` 自动联动；凡是通过快捷键或其他路径隐藏主窗口时，都要同步调用 `workspace.syncCollapsedControlVisibilityWithMainWindow(false)`，恢复显示时也要按 `headerCollapsed + provider` 状态重新决定是否显示。
+32. 主窗口关闭行为当前在 `src/App.vue` 通过 `getCurrentWindow().onCloseRequested(...)` 拦截；如果要“真正退出应用”，必须调用 Rust 命令 `exit_application`，不要直接走前端 `currentWindow.close()`，否则会再次命中关闭拦截。
+33. 托盘 / macOS 菜单栏图标由 `src-tauri/src/lib.rs` 中的 `TrayIconBuilder` 创建，依赖 `src-tauri/Cargo.toml` 里的 `tauri` feature `tray-icon`；当前约定是 Windows 左键恢复主窗口，macOS 左键保留菜单，恢复后通过事件 `app:restore-from-tray` 通知前端同步收起态悬浮展开按钮。
+34. 关闭窗口相关持久化偏好当前保存在 `preferences.closeBehavior` 与 `preferences.closePromptEnabled`；设置页与关闭提示框都必须共用这两个字段，避免出现“设置页和实际关闭行为不一致”的双状态。
+35. 主壳层里的 DOM 弹框默认盖不住 provider 原生子 `Webview`；凡是要在主窗口上弹确认框、引导层或其他模态内容时，都要先临时隐藏当前 provider 子 `Webview`，结束后再按场景恢复，否则用户看到的会是“弹框被网页盖住”或“只有遮罩没有面板”。
+36. 当前托盘恢复链路统一挂在 `tauri::Builder::on_menu_event` 与 `tauri::Builder::on_tray_icon_event` 上，由 `src-tauri/src/lib.rs` 内的 `handle_tray_menu_event()` / `handle_tray_icon_event()` 分发；不要再把“打开面板 / 退出应用”只绑在 `TrayIconBuilder` 的局部回调里，否则排查“托盘菜单点击无效”时会更分散、更难定位。
+37. 前端 `App.vue` 的 `handleRestoreFromTray()` 现在必须与快捷键恢复路径保持一致：至少覆盖 `unminimize -> show -> syncCollapsedControlVisibilityWithMainWindow(true) -> setFocus`。如果后续只在 Rust 侧 `show()` 主窗口、不补前端这一段，容易再次出现“托盘菜单触发了，但面板没有真正回到前台”的体验问题。
 
 ## 当前实现结构
 
@@ -71,7 +77,7 @@
 
 1. 当前阶段不做统一消息协议，只做网页聚合、切换与状态保留。
 2. 当前阶段不清理远程页面缓存，保留登录态与会话状态优先级最高。
-3. 设置页当前只覆盖快捷键与主题，不扩展更多系统设置。
+3. 设置页当前覆盖快捷键、主题、语言与关闭窗口行为，不再只限于快捷键与主题。
 4. 当前优先保证 Windows 下的可运行性与可打包性。
 
 ## 已知风险

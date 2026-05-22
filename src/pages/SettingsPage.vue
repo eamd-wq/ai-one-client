@@ -5,11 +5,11 @@ import { useI18n } from "../lib/i18n";
 import { eventToShortcut, formatShortcutLabel } from "../lib/shortcut";
 import { useHotkeyStore } from "../stores/hotkey";
 import { usePreferencesStore } from "../stores/preferences";
-import type { AppLanguage, ThemeMode } from "../types/provider";
+import type { AppLanguage, ThemeMode, WindowCloseBehavior } from "../types/provider";
 
 const preferences = usePreferencesStore();
 const hotkey = useHotkeyStore();
-const { t, tLanguage, tThemeMode } = useI18n();
+const { t, tCloseBehavior, tLanguage, tThemeMode } = useI18n();
 
 const draftShortcut = ref(preferences.shortcut);
 const errorMessage = ref("");
@@ -24,6 +24,7 @@ const shortcutLabel = computed(() =>
 
 const availableLanguages: AppLanguage[] = ["zh-CN", "en-US"];
 const availableThemeModes: ThemeMode[] = ["system", "light", "dark"];
+const availableCloseBehaviors: WindowCloseBehavior[] = ["tray", "quit"];
 
 if (hotkey.startupConflictMessage) {
   errorMessage.value = hotkey.startupConflictMessage;
@@ -46,6 +47,38 @@ async function changeLanguage(language: AppLanguage) {
   errorMessage.value = "";
   successMessage.value = "";
   await preferences.setLanguage(language);
+}
+
+/**
+ * 更新关闭主窗口时的默认行为。
+ */
+async function changeCloseBehavior(nextBehavior: WindowCloseBehavior) {
+  errorMessage.value = "";
+  successMessage.value = "";
+  await preferences.setCloseBehavior(nextBehavior);
+  successMessage.value = t("settingsPage.closeBehaviorUpdated");
+}
+
+/**
+ * 更新关闭前是否继续弹出确认提示。
+ */
+async function changeClosePromptEnabled(nextEnabled: boolean) {
+  errorMessage.value = "";
+  successMessage.value = "";
+  await preferences.setClosePromptEnabled(nextEnabled);
+  successMessage.value = t("settingsPage.closePromptUpdated");
+}
+
+/**
+ * 处理关闭提示开关切换。
+ */
+function handleClosePromptChange(event: globalThis.Event) {
+  const target = event.target;
+  if (!(target instanceof globalThis.HTMLInputElement)) {
+    return;
+  }
+
+  void changeClosePromptEnabled(target.checked);
 }
 
 /**
@@ -231,6 +264,53 @@ async function resetShortcut() {
               {{ tLanguage(language) }}
             </button>
           </div>
+        </article>
+
+        <article class="rounded-[20px] border border-[var(--app-border)] bg-[var(--app-bg-strong)] p-5 md:col-span-2">
+          <div class="text-sm uppercase tracking-[0.22em] text-[var(--app-text-soft)]">
+            {{ t("settingsPage.closeEyebrow") }}
+          </div>
+          <div class="mt-3 text-lg font-semibold text-[var(--app-text)]">
+            {{ t("settingsPage.closeTitle") }}
+          </div>
+          <div class="mt-2 text-sm text-[var(--app-text-soft)]">
+            {{ t("settingsPage.closeDescription") }}
+          </div>
+
+          <div class="mt-5 flex flex-wrap gap-3">
+            <button
+              v-for="behavior in availableCloseBehaviors"
+              :key="behavior"
+              class="rounded-full px-4 py-2 text-sm transition"
+              :class="
+                preferences.closeBehavior === behavior
+                  ? 'bg-[var(--app-accent)] text-white shadow-lg'
+                  : 'border border-[var(--app-border)] text-[var(--app-text-soft)] hover:bg-[var(--app-accent-soft)] hover:text-[var(--app-text)]'
+              "
+              @click="changeCloseBehavior(behavior)"
+            >
+              {{ tCloseBehavior(behavior) }}
+            </button>
+          </div>
+
+          <label
+            class="mt-5 flex items-start gap-3 rounded-[16px] border border-[var(--app-border)] px-4 py-3 transition hover:bg-[var(--app-accent-soft)]"
+          >
+            <input
+              class="mt-1 h-4 w-4 accent-[var(--app-accent)]"
+              type="checkbox"
+              :checked="preferences.closePromptEnabled"
+              @change="handleClosePromptChange"
+            >
+            <span>
+              <span class="block text-sm font-semibold text-[var(--app-text)]">
+                {{ t("settingsPage.closePromptLabel") }}
+              </span>
+              <span class="mt-1 block text-sm text-[var(--app-text-soft)]">
+                {{ t("settingsPage.closePromptDescription") }}
+              </span>
+            </span>
+          </label>
         </article>
       </div>
 

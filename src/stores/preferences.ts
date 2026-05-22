@@ -10,6 +10,7 @@ import type {
   PreferencesSnapshot,
   ProviderCamp,
   ThemeMode,
+  WindowCloseBehavior,
 } from "../types/provider";
 
 /**
@@ -21,6 +22,8 @@ export const usePreferencesStore = defineStore("preferences", () => {
   const camp = ref<ProviderCamp>(defaultPreferences.camp);
   const themeMode = ref<ThemeMode>(defaultPreferences.themeMode);
   const shortcut = ref(defaultPreferences.shortcut);
+  const closeBehavior = ref<WindowCloseBehavior>(defaultPreferences.closeBehavior);
+  const closePromptEnabled = ref(defaultPreferences.closePromptEnabled);
   const lastProviderId = ref<string | null>(defaultPreferences.lastProviderId);
   const customProviders = ref<CustomProviderRecord[]>(defaultPreferences.customProviders);
   const headerCollapsed = ref(defaultPreferences.headerCollapsed);
@@ -46,6 +49,12 @@ export const usePreferencesStore = defineStore("preferences", () => {
       (await appStore.get<ThemeMode>("themeMode")) ?? defaultPreferences.themeMode;
     shortcut.value =
       (await appStore.get<string>("shortcut")) ?? defaultPreferences.shortcut;
+    closeBehavior.value =
+      (await appStore.get<WindowCloseBehavior>("closeBehavior")) ??
+      defaultPreferences.closeBehavior;
+    closePromptEnabled.value =
+      (await appStore.get<boolean>("closePromptEnabled")) ??
+      defaultPreferences.closePromptEnabled;
     lastProviderId.value =
       (await appStore.get<string | null>("lastProviderId")) ??
       defaultPreferences.lastProviderId;
@@ -119,6 +128,22 @@ export const usePreferencesStore = defineStore("preferences", () => {
   async function setShortcut(nextShortcut: string) {
     shortcut.value = nextShortcut;
     await appStore.set("shortcut", nextShortcut);
+  }
+
+  /**
+   * 更新关闭窗口时的默认行为。
+   */
+  async function setCloseBehavior(nextBehavior: WindowCloseBehavior) {
+    closeBehavior.value = nextBehavior;
+    await appStore.set("closeBehavior", nextBehavior);
+  }
+
+  /**
+   * 更新关闭窗口时是否继续弹出确认提示。
+   */
+  async function setClosePromptEnabled(nextEnabled: boolean) {
+    closePromptEnabled.value = nextEnabled;
+    await appStore.set("closePromptEnabled", nextEnabled);
   }
 
   /**
@@ -200,6 +225,8 @@ export const usePreferencesStore = defineStore("preferences", () => {
     camp: camp.value,
     themeMode: themeMode.value,
     shortcut: shortcut.value,
+    closeBehavior: closeBehavior.value,
+    closePromptEnabled: closePromptEnabled.value,
     lastProviderId: lastProviderId.value,
     customProviders: customProviders.value,
     headerCollapsed: headerCollapsed.value,
@@ -212,6 +239,8 @@ export const usePreferencesStore = defineStore("preferences", () => {
     camp,
     themeMode,
     shortcut,
+    closeBehavior,
+    closePromptEnabled,
     lastProviderId,
     customProviders,
     headerCollapsed,
@@ -224,6 +253,8 @@ export const usePreferencesStore = defineStore("preferences", () => {
     setLanguage,
     setThemeMode,
     setShortcut,
+    setCloseBehavior,
+    setClosePromptEnabled,
     setLastProviderId,
     setHeaderCollapsed,
     setCollapsedControlLeft,

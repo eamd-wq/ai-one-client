@@ -12,6 +12,7 @@
 2. 远程页面主题同步是否对主流目标站点足够有效，需要在 DeepSeek、豆包、ChatGPT、Gemini 上分别验证。
 3. 如果多个远程子 Webview 常驻后的内存占用偏高，后续可能需要加入回收策略。
 4. 如果后续改为交付 `MSI`，需要补验证 WiX 安装与下载链路；当前 `NSIS` 已满足 Windows 主分发需求。
+5. 关闭主窗口后的托盘 / 菜单栏恢复链路虽然已经完成 Windows 本机编译验证，并通过 `DOCS_RS=1 cargo check --target aarch64-apple-darwin/x86_64-apple-darwin` 做了 Apple 目标静态检查，但 macOS 真实运行表现与最终构建仍需在 Mac 机器上确认。
 
 ## 暂定方案
 
