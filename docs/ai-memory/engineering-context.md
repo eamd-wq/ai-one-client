@@ -6,7 +6,7 @@
 2. 当前已验证通过前端 `typecheck`、`lint`、`build`，以及 `pnpm tauri build --bundles nsis`。
 3. 当前可交付产物包括：
    - `src-tauri/target/release/aiclientcore.exe`
-   - `src-tauri/target/release/bundle/nsis/AIClientCore_0.1.1_x64-setup.exe`
+   - `src-tauri/target/release/bundle/nsis/AIClientCore_0.1.5_x64-setup.exe`
 
 ## 目标技术栈
 
@@ -52,6 +52,7 @@
 28. 对这个桌面壳层来说，外层页面高度要优先使用 `h-screen` / `h-full`，不要在承载路由页的壳层继续使用 `min-h-screen`；否则内容会把页面实际高度撑长，但外层又禁了全局滚动，最终会让内部滚动区域失效。
 29. 快速切换 AI 页面的 provider 列表当前使用 `scrollbar-hidden` 样式类隐藏原生滚动条，但仍保留 `overflow-y-auto`；后续若继续调整该区域，避免把滚动条隐藏和滚动能力一起删掉。
 30. “禁用右键菜单”不能只在 Vue 主壳层里监听 `contextmenu`；远程 AI 页面运行在独立子 `Webview` 中，必须额外在 `src-tauri/src/lib.rs` 里通过 `Builder::on_page_load` 给每个 Webview 注入禁右键脚本，悬浮展开控件 `overlay-control.ts` 也要单独拦截。
+31. 收起态展开按钮当前承载在独立 `WebviewWindow` 中，它不会随主窗口 `hide()` 自动联动；凡是通过快捷键或其他路径隐藏主窗口时，都要同步调用 `workspace.syncCollapsedControlVisibilityWithMainWindow(false)`，恢复显示时也要按 `headerCollapsed + provider` 状态重新决定是否显示。
 
 ## 当前实现结构
 

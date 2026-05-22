@@ -321,6 +321,29 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   }
 
   /**
+   * 根据主窗口显隐状态同步收起态展开控件，避免主窗口隐藏后悬浮按钮残留在桌面。
+   */
+  async function syncCollapsedControlVisibilityWithMainWindow(isVisible: boolean) {
+    if (!isVisible) {
+      await hideCollapsedControl();
+      return;
+    }
+
+    const preferences = usePreferencesStore();
+    const shouldShowCollapsedControl =
+      preferences.headerCollapsed &&
+      currentPane.value === "provider" &&
+      Boolean(activeProviderId.value);
+
+    if (!shouldShowCollapsedControl) {
+      await hideCollapsedControl();
+      return;
+    }
+
+    await showCollapsedControl();
+  }
+
+  /**
    * 同步主题到已创建的子 Webview。
    */
   async function syncThemeToWebviews(theme: "light" | "dark") {
@@ -451,5 +474,6 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     setShellTopOffset,
     showCollapsedControl,
     hideCollapsedControl,
+    syncCollapsedControlVisibilityWithMainWindow,
   };
 });

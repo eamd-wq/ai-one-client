@@ -10,6 +10,7 @@ import { ref } from "vue";
 
 import { translate } from "../lib/i18n";
 import { usePreferencesStore } from "./preferences";
+import { useWorkspaceStore } from "./workspace";
 
 const DEFAULT_SHORTCUT = "Shift+Alt+W";
 
@@ -80,9 +81,11 @@ export const useHotkeyStore = defineStore("hotkey", () => {
    */
   async function toggleAppVisibility() {
     const currentWindow = getCurrentWindow();
+    const workspace = useWorkspaceStore();
     const visible = await currentWindow.isVisible();
 
     if (visible) {
+      await workspace.syncCollapsedControlVisibilityWithMainWindow(false);
       await currentWindow.hide();
       return;
     }
@@ -92,6 +95,7 @@ export const useHotkeyStore = defineStore("hotkey", () => {
     }
 
     await currentWindow.show();
+    await workspace.syncCollapsedControlVisibilityWithMainWindow(true);
     await currentWindow.setFocus();
   }
 

@@ -1,5 +1,22 @@
 # Change Log
 
+## 2026-05-22 - 版本升级到 0.1.5 并重新产出 Windows NSIS 安装包
+
+- **改动**：将 `package.json`、`src-tauri/tauri.conf.json` 与 `src-tauri/Cargo.toml` 的版本号统一从 `0.1.4` 升到 `0.1.5`，并重新执行 `pnpm tauri build --bundles nsis`。
+- **原因**：用户要求再打一个最新的 Windows 安装包，并明确要求版本号继续上升一个版本。
+- **影响**：
+  - 成功生成新的 Windows 安装包：`src-tauri/target/release/bundle/nsis/AIClientCore_0.1.5_x64-setup.exe`。
+  - `pnpm tauri build --bundles nsis` 已通过。
+
+## 2026-05-22 - 修复快捷键隐藏主窗口后展开按钮残留在桌面
+
+- **改动**：在 `src/stores/workspace.ts` 新增 `syncCollapsedControlVisibilityWithMainWindow()`，并在 `src/stores/hotkey.ts` 的快捷键显隐链路里同步隐藏/恢复收起态展开按钮。
+- **原因**：顶部展开按钮承载在独立 `WebviewWindow` 中，主窗口执行 `hide()` 时它不会自动一起隐藏，所以快捷键收起应用后会残留在屏幕上。
+- **影响**：
+  - 使用全局快捷键隐藏软件时，收起态展开按钮会一起消失。
+  - 再次通过快捷键显示软件时，如果当前仍是收起态工作区，会按本地状态重新显示按钮。
+  - `pnpm typecheck`、`pnpm lint` 已通过。
+
 ## 2026-05-22 - Fix collapsed overlay intercepting clicks on other pages
 
 - Removed the temporary focus-based workaround in `src/components/AppShell.vue`.
