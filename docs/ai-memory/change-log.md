@@ -16,6 +16,18 @@
 - `src/components/AppShell.vue` no longer refreshes the overlay window bounds after a position commit, because the saved value is now only a logical ratio.
 - Follow-up fix: runtime state also now keeps the ratio as the source of truth during dragging and resize. Saving as ratio alone was not enough, because reusing the old pixel `currentLeft` on resize made the button drift toward the middle after enlarging the window.
 
+## 2026-05-22 - Bump version to 0.1.2 and build new Windows NSIS installer
+
+- Updated `package.json`, `src-tauri/tauri.conf.json`, and `src-tauri/Cargo.toml` from `0.1.1` to `0.1.2`.
+- Built a fresh Windows installer with `pnpm tauri build --bundles nsis`.
+- New verified artifact: `src-tauri/target/release/bundle/nsis/AIClientCore_0.1.2_x64-setup.exe`.
+
+## 2026-05-22 - Bump version to 0.1.3 and rebuild Windows NSIS installer
+
+- Updated `package.json`, `src-tauri/tauri.conf.json`, and `src-tauri/Cargo.toml` from `0.1.2` to `0.1.3`.
+- Rebuilt the Windows installer with `pnpm tauri build --bundles nsis`.
+- New verified artifact: `src-tauri/target/release/bundle/nsis/AIClientCore_0.1.3_x64-setup.exe`.
+
 按时间倒序记录重要 AI 改动，重点保留“改了什么、为什么改、影响是什么”。
 
 ## 2026-05-22 - README 补充 Win / macOS 打包方式与 CPU 架构约束
