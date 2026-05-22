@@ -15,6 +15,7 @@ const appStore = new LazyStore("app-preferences.json");
 let pointerStartX = 0;
 let dragStartLeft = 0;
 let currentLeft = 0;
+let currentPositionRatio = 0.5;
 let availableWidth = 320;
 let dragged = false;
 let isPointerDown = false;
@@ -67,12 +68,12 @@ async function requestExpand() {
 }
 
 async function persistControlLeft() {
-  const positionRatio = leftToRatio(currentLeft);
-  await appStore.set("collapsedControlLeft", positionRatio);
+  currentPositionRatio = leftToRatio(currentLeft);
+  await appStore.set("collapsedControlLeft", currentPositionRatio);
   await emitTo(
     { kind: "Webview", label: "main" },
     "collapsed-control:position-commit",
-    positionRatio,
+    currentPositionRatio,
   );
 }
 
@@ -98,6 +99,13 @@ async function restoreControlLeft() {
           savedValue <= MAX_SAVED_POSITION_RATIO
         ? ratioToLeft(savedValue)
         : clampLeft(savedValue);
+  currentPositionRatio =
+    savedValue === null
+      ? leftToRatio(centeredLeft)
+      : savedValue >= MIN_SAVED_POSITION_RATIO &&
+          savedValue <= MAX_SAVED_POSITION_RATIO
+        ? clampPositionRatio(savedValue)
+        : leftToRatio(savedValue);
   currentLeft = restoredLeft;
   commitButtonPosition(currentLeft);
   await setInteractive(false);
@@ -109,12 +117,14 @@ function renderButtonLeft(nextLeft: number) {
 
 function commitButtonPosition(nextLeft: number) {
   currentLeft = clampLeft(nextLeft);
+  currentPositionRatio = leftToRatio(currentLeft);
   pendingLeft = currentLeft;
   renderButtonLeft(currentLeft);
 }
 
 function scheduleMove(nextLeft: number) {
   pendingLeft = clampLeft(nextLeft);
+  currentPositionRatio = leftToRatio(pendingLeft);
   renderButtonLeft(pendingLeft);
 
   if (rafId !== null) {
@@ -361,7 +371,8 @@ globalThis.window.setInterval(() => {
 void syncHoverState();
 void overlayWindow.onResized(() => {
   void (async () => {
+    const nextPositionRatio = currentPositionRatio;
     await syncAvailableWidth();
-    commitButtonPosition(currentLeft);
+    commitButtonPosition(ratioToLeft(nextPositionRatio));
   })();
 });

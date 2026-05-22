@@ -14,6 +14,7 @@
 - Added ratio/pixel conversion helpers and kept backward compatibility with existing pixel values already saved in `app-preferences.json`.
 - On overlay resize, the button now recalculates its clamped pixel position from the current relative location so it stays visible after maximize/restore or manual window resizing.
 - `src/components/AppShell.vue` no longer refreshes the overlay window bounds after a position commit, because the saved value is now only a logical ratio.
+- Follow-up fix: runtime state also now keeps the ratio as the source of truth during dragging and resize. Saving as ratio alone was not enough, because reusing the old pixel `currentLeft` on resize made the button drift toward the middle after enlarging the window.
 
 按时间倒序记录重要 AI 改动，重点保留“改了什么、为什么改、影响是什么”。
 
