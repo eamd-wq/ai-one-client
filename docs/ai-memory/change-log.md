@@ -2,12 +2,12 @@
 
 ## 2026-05-23 - 修复托盘右键“打开面板”无效
 
-- **改动**：将 `src-tauri/src/lib.rs` 的托盘恢复链路从 `TrayIconBuilder` 局部回调收敛到 `tauri::Builder::on_menu_event` 与 `tauri::Builder::on_tray_icon_event`，统一通过 `handle_tray_menu_event()` / `handle_tray_icon_event()` 分发“打开面板 / 退出应用 / Windows 左键恢复”；同时把 `src/App.vue` 的 `handleRestoreFromTray()` 补齐为与快捷键恢复一致的 `unminimize + show + focus + overlay 同步` 链路。
+- **改动**：将 `src-tauri/src/lib.rs` 的托盘恢复链路从 `TrayIconBuilder` 局部回调收敛到 `tauri::Builder::on_menu_event` 与 `tauri::Builder::on_tray_icon_event`，统一通过 `handle_tray_menu_event()` / `handle_tray_icon_event()` 分发“打开面板 / 退出应用 / Windows 左键恢复”；同时把前端托盘恢复改为直接复用 `src/stores/hotkey.ts` 的 `showAppWindow()`，不再在 `App.vue` 复制另一套显示逻辑。
 - **原因**：用户反馈托盘图标右键菜单里的“打开面板”点击无效，需要把事件监听改成更稳定、更集中的应用级处理方式。
 - **影响**：
   - 托盘右键“打开面板”与“退出应用”现在都走同一条应用级 Rust 回调。
   - Windows 左键恢复主窗口的逻辑也同步收敛到同一处分发，后续排查托盘交互更容易。
-  - 前端收到 `app:restore-from-tray` 事件后，会主动执行显示、取消最小化、聚焦和悬浮展开按钮同步，不再只做 overlay 显隐。
+  - 前端收到 `app:restore-from-tray` 事件后，会直接走与全局快捷键一致的 `showAppWindow()` 展示链路，不再只做 overlay 显隐，也不再维护第二套窗口恢复逻辑。
   - `pnpm typecheck`、`pnpm lint`、`pnpm build` 与 `cargo check` 已通过；这类托盘回调改动需要完整重启 Tauri 进程后再验证，前端 HMR 不足以覆盖。
 
 ## 2026-05-23 - 调整关闭确认面板布局并统一托盘菜单中文文案

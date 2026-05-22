@@ -58,7 +58,7 @@
 34. 关闭窗口相关持久化偏好当前保存在 `preferences.closeBehavior` 与 `preferences.closePromptEnabled`；设置页与关闭提示框都必须共用这两个字段，避免出现“设置页和实际关闭行为不一致”的双状态。
 35. 主壳层里的 DOM 弹框默认盖不住 provider 原生子 `Webview`；凡是要在主窗口上弹确认框、引导层或其他模态内容时，都要先临时隐藏当前 provider 子 `Webview`，结束后再按场景恢复，否则用户看到的会是“弹框被网页盖住”或“只有遮罩没有面板”。
 36. 当前托盘恢复链路统一挂在 `tauri::Builder::on_menu_event` 与 `tauri::Builder::on_tray_icon_event` 上，由 `src-tauri/src/lib.rs` 内的 `handle_tray_menu_event()` / `handle_tray_icon_event()` 分发；不要再把“打开面板 / 退出应用”只绑在 `TrayIconBuilder` 的局部回调里，否则排查“托盘菜单点击无效”时会更分散、更难定位。
-37. 前端 `App.vue` 的 `handleRestoreFromTray()` 现在必须与快捷键恢复路径保持一致：至少覆盖 `unminimize -> show -> syncCollapsedControlVisibilityWithMainWindow(true) -> setFocus`。如果后续只在 Rust 侧 `show()` 主窗口、不补前端这一段，容易再次出现“托盘菜单触发了，但面板没有真正回到前台”的体验问题。
+37. 前端托盘恢复链路现在应优先直接复用 `src/stores/hotkey.ts` 的 `showAppWindow()`，不要在 `App.vue` 再复制一套 `unminimize -> show -> syncCollapsedControlVisibilityWithMainWindow(true) -> setFocus`。只有这样，托盘“打开面板”和全局快捷键“显示窗口”才能稳定走同一条已验证过的展示链路。
 
 ## 当前实现结构
 

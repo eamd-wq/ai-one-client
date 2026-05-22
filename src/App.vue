@@ -136,15 +136,7 @@ async function handleCloseRequested(event: { preventDefault: () => void }) {
  * 从托盘恢复主窗口后，同步恢复收起态展开控件的显隐。
  */
 async function handleRestoreFromTray() {
-  const currentWindow = getCurrentWindow();
-
-  if (await currentWindow.isMinimized()) {
-    await currentWindow.unminimize();
-  }
-
-  await currentWindow.show();
-  await workspace.syncCollapsedControlVisibilityWithMainWindow(true);
-  await currentWindow.setFocus();
+  await hotkey.showAppWindow();
 }
 
 /**

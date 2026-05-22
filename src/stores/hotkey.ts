@@ -77,18 +77,22 @@ export const useHotkeyStore = defineStore("hotkey", () => {
   }
 
   /**
-   * 切换应用显示状态。
+   * 隐藏主窗口，并同步隐藏收起态展开按钮。
    */
-  async function toggleAppVisibility() {
+  async function hideAppWindow() {
     const currentWindow = getCurrentWindow();
     const workspace = useWorkspaceStore();
-    const visible = await currentWindow.isVisible();
 
-    if (visible) {
-      await workspace.syncCollapsedControlVisibilityWithMainWindow(false);
-      await currentWindow.hide();
-      return;
-    }
+    await workspace.syncCollapsedControlVisibilityWithMainWindow(false);
+    await currentWindow.hide();
+  }
+
+  /**
+   * 展示主窗口，并复用快捷键已验证过的恢复链路。
+   */
+  async function showAppWindow() {
+    const currentWindow = getCurrentWindow();
+    const workspace = useWorkspaceStore();
 
     if (await currentWindow.isMinimized()) {
       await currentWindow.unminimize();
@@ -97,6 +101,21 @@ export const useHotkeyStore = defineStore("hotkey", () => {
     await currentWindow.show();
     await workspace.syncCollapsedControlVisibilityWithMainWindow(true);
     await currentWindow.setFocus();
+  }
+
+  /**
+   * 切换应用显示状态。
+   */
+  async function toggleAppVisibility() {
+    const currentWindow = getCurrentWindow();
+    const visible = await currentWindow.isVisible();
+
+    if (visible) {
+      await hideAppWindow();
+      return;
+    }
+
+    await showAppWindow();
   }
 
   /**
@@ -201,6 +220,8 @@ export const useHotkeyStore = defineStore("hotkey", () => {
     init,
     updateShortcut,
     toggleAppVisibility,
+    showAppWindow,
+    hideAppWindow,
     dispose,
     clearStartupConflict,
   };
