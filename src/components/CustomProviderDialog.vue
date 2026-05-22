@@ -86,7 +86,7 @@ function saveProvider() {
       @click.self="closeDialog"
     >
       <div class="w-full max-w-[460px] rounded-[22px] border border-[var(--app-border)] bg-[var(--app-bg-elevated)] p-6 shadow-[var(--app-shadow)] backdrop-blur-2xl">
-        <div class="flex items-start justify-between gap-4">
+        <div>
           <div>
             <div class="font-display text-[1.4rem] tracking-[0.08em] text-[var(--app-text)]">
               {{ t("customDialog.title") }}
@@ -95,13 +95,6 @@ function saveProvider() {
               {{ t("customDialog.description") }}
             </div>
           </div>
-
-          <button
-            class="rounded-full px-3 py-1.5 text-sm text-[var(--app-text-soft)] transition hover:bg-[var(--app-accent-soft)] hover:text-[var(--app-text)]"
-            @click="closeDialog"
-          >
-            {{ t("common.close") }}
-          </button>
         </div>
 
         <div class="mt-6 flex flex-col gap-4">
