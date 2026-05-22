@@ -8,6 +8,13 @@
 - This regression happened because the transparent `WebviewWindow` could stay above normal content and keep owning mouse events across the whole strip.
 - Window-layer behavior and capability changes require a full Tauri process restart for validation; frontend HMR alone is not enough.
 
+## 2026-05-22 - Store collapsed button position as width ratio instead of pixels
+
+- Updated `src/overlay-control.ts` to persist `collapsedControlLeft` as a `0..1` relative width ratio rather than an absolute pixel offset.
+- Added ratio/pixel conversion helpers and kept backward compatibility with existing pixel values already saved in `app-preferences.json`.
+- On overlay resize, the button now recalculates its clamped pixel position from the current relative location so it stays visible after maximize/restore or manual window resizing.
+- `src/components/AppShell.vue` no longer refreshes the overlay window bounds after a position commit, because the saved value is now only a logical ratio.
+
 按时间倒序记录重要 AI 改动，重点保留“改了什么、为什么改、影响是什么”。
 
 ## 2026-05-22 - README 补充 Win / macOS 打包方式与 CPU 架构约束

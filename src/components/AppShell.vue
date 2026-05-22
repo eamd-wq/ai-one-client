@@ -160,7 +160,6 @@ onMounted(async () => {
     async (event) => {
       if (typeof event.payload === "number") {
         await preferences.setCollapsedControlLeft(event.payload);
-        await workspace.refreshCollapsedControlBounds();
       }
     },
   );

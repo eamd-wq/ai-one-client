@@ -8,6 +8,8 @@ const CONTROL_MARGIN = 8;
 const CONTROL_TOP = 8;
 const HOVER_HIT_SLOP = 6;
 const HOVER_POLL_MS = 50;
+const MIN_SAVED_POSITION_RATIO = 0;
+const MAX_SAVED_POSITION_RATIO = 1;
 const appStore = new LazyStore("app-preferences.json");
 
 let pointerStartX = 0;
@@ -40,16 +42,37 @@ function clampLeft(nextLeft: number) {
   return Math.min(Math.max(nextLeft, CONTROL_MARGIN), maxLeft);
 }
 
+function getMovableWidth() {
+  return Math.max(availableWidth - CONTROL_SIZE - CONTROL_MARGIN * 2, 1);
+}
+
+function clampPositionRatio(nextRatio: number) {
+  return Math.min(
+    Math.max(nextRatio, MIN_SAVED_POSITION_RATIO),
+    MAX_SAVED_POSITION_RATIO,
+  );
+}
+
+function leftToRatio(left: number) {
+  const normalizedLeft = clampLeft(left) - CONTROL_MARGIN;
+  return clampPositionRatio(normalizedLeft / getMovableWidth());
+}
+
+function ratioToLeft(ratio: number) {
+  return clampLeft(CONTROL_MARGIN + clampPositionRatio(ratio) * getMovableWidth());
+}
+
 async function requestExpand() {
   await emitTo({ kind: "Webview", label: "main" }, "collapsed-control:expand-request");
 }
 
 async function persistControlLeft() {
-  await appStore.set("collapsedControlLeft", currentLeft);
+  const positionRatio = leftToRatio(currentLeft);
+  await appStore.set("collapsedControlLeft", positionRatio);
   await emitTo(
     { kind: "Webview", label: "main" },
     "collapsed-control:position-commit",
-    currentLeft,
+    positionRatio,
   );
 }
 
@@ -64,10 +87,18 @@ async function syncAvailableWidth() {
 
 async function restoreControlLeft() {
   await appStore.init();
-  const savedLeft = await appStore.get<number | null>("collapsedControlLeft");
+  const savedValue =
+    (await appStore.get<number | null>("collapsedControlLeft")) ?? null;
   await syncAvailableWidth();
   const centeredLeft = Math.round((availableWidth - CONTROL_SIZE) / 2);
-  currentLeft = clampLeft(savedLeft ?? centeredLeft);
+  const restoredLeft =
+    savedValue === null
+      ? centeredLeft
+      : savedValue >= MIN_SAVED_POSITION_RATIO &&
+          savedValue <= MAX_SAVED_POSITION_RATIO
+        ? ratioToLeft(savedValue)
+        : clampLeft(savedValue);
+  currentLeft = restoredLeft;
   commitButtonPosition(currentLeft);
   await setInteractive(false);
 }
@@ -329,5 +360,8 @@ globalThis.window.setInterval(() => {
 }, HOVER_POLL_MS);
 void syncHoverState();
 void overlayWindow.onResized(() => {
-  void syncAvailableWidth();
+  void (async () => {
+    await syncAvailableWidth();
+    commitButtonPosition(currentLeft);
+  })();
 });
