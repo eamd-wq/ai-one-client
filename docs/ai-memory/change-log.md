@@ -28,6 +28,13 @@
 - Rebuilt the Windows installer with `pnpm tauri build --bundles nsis`.
 - New verified artifact: `src-tauri/target/release/bundle/nsis/AIClientCore_0.1.3_x64-setup.exe`.
 
+## 2026-05-22 - Configure Windows NSIS installer to follow system language and rebuild 0.1.4
+
+- Added `bundle.windows.nsis.languages = ["SimpChinese", "English"]` in `src-tauri/tauri.conf.json`, so the Windows installer follows the user's system language between Simplified Chinese and English.
+- Bumped `package.json`, `src-tauri/tauri.conf.json`, and `src-tauri/Cargo.toml` from `0.1.3` to `0.1.4`.
+- Rebuilt the Windows installer with `pnpm tauri build --bundles nsis`.
+- New verified artifact: `src-tauri/target/release/bundle/nsis/AIClientCore_0.1.4_x64-setup.exe`.
+
 按时间倒序记录重要 AI 改动，重点保留“改了什么、为什么改、影响是什么”。
 
 ## 2026-05-22 - README 补充 Win / macOS 打包方式与 CPU 架构约束
