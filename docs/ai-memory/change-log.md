@@ -1,5 +1,14 @@
 # Change Log
 
+## 2026-05-23 - 版本升级到 0.1.6 并重新产出 Windows NSIS 安装包
+
+- **改动**：将 `package.json`、`src-tauri/Cargo.toml` 与 `src-tauri/tauri.conf.json` 的版本号统一从 `0.1.5` 升到 `0.1.6`，并重新执行 `pnpm tauri build --bundles nsis`。
+- **原因**：用户要求在当前托盘恢复修复确认后，再升级一个版本并重新打出最新安装包，便于继续分发验证。
+- **影响**：
+  - 新版本号现在统一为 `0.1.6`。
+  - 会产出新的 Windows 安装包：`src-tauri/target/release/bundle/nsis/AIClientCore_0.1.6_x64-setup.exe`。
+  - 本次发版会以实际 `pnpm tauri build --bundles nsis` 成功为准。
+
 ## 2026-05-23 - 修复托盘右键“打开面板”无效，并让双击托盘图标同样恢复主窗口
 
 - **改动**：将 `src-tauri/src/lib.rs` 的托盘恢复链路从 `TrayIconBuilder` 局部回调收敛到 `tauri::Builder::on_menu_event` 与 `tauri::Builder::on_tray_icon_event`，统一通过 `handle_tray_menu_event()` / `handle_tray_icon_event()` 分发“打开面板 / 退出应用 / Windows 左键单击 / Windows 左键双击恢复”；同时把前端托盘恢复改为直接复用 `src/stores/hotkey.ts` 的 `showAppWindow()`，不再在 `App.vue` 复制另一套显示逻辑，并在 Rust 侧补一个 `show_main_window_fallback()` 兜底。
