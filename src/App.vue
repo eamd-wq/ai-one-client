@@ -33,6 +33,10 @@ onMounted(async () => {
     await workspace.refreshWebviewBounds();
   });
 
+  await currentWindow.onMoved(async () => {
+    await workspace.refreshWebviewBounds();
+  });
+
   if (hotkey.startupConflictMessage) {
     globalThis.window.alert(hotkey.startupConflictMessage);
     await workspace.showSettings();

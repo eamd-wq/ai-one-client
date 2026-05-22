@@ -35,6 +35,64 @@
   - 如果用户上次是收起态，应用再次启动时会按记忆直接显示展开按钮。
   - 拖动逻辑仍然保持较低闪动的实现方式。
 
+## 2026-05-22 - 收起态展开控件升级为独立透明 WebviewWindow，拖动改走纯前端路径
+
+- **改动**：将收起态展开控件从主窗口内的子 `Webview` 改为独立透明 `WebviewWindow`；`src-tauri/capabilities/default.json` 新增 `core:webview:allow-create-webview-window` 与 `core:window:allow-set-ignore-cursor-events`；`src/stores/workspace.ts` 改为创建整条顶部透明悬浮窗；`src/overlay-control.ts` 改为在悬浮窗内部只移动 DOM 按钮，并使用窗口级 `setIgnoreCursorEvents` 让按钮之外的区域鼠标穿透到底层网页。
+- **原因**：此前无论是“小型子 Webview 高频移动”还是“局部节流后继续移动子 Webview”，拖动本质上都依赖高频原生位置变更，手感仍然不跟手且容易闪动。
+- **影响**：
+  - 拖动阶段回到纯前端 DOM 位移，手感理论上会明显优于原来的子 Webview 移动方案。
+  - 悬浮窗按钮之外的顶部区域可继续把 hover / click 透传给底层 AI 网页。
+  - 这条交互链路后续应继续沿 `WebviewWindow + ignore cursor events` 方向迭代，不建议回退到子 `Webview` 高频移动方案。
+
+## 2026-05-22 - 为收起态展开悬浮窗补齐 capability 绑定
+
+- **改动**：将 `src-tauri/capabilities/default.json` 的 `windows` 从仅 `main` 扩展为同时覆盖 `overlay:collapsed-control`。
+- **原因**：收起态展开控件已经升级为独立 `WebviewWindow`，如果 capability 仍只绑定主窗口，这个悬浮窗内的本地脚本就无法稳定访问 `event`、`store`、`window` 等 API，表现上容易出现“按钮不显示”或交互异常。
+- **影响**：
+  - 悬浮窗内脚本现在与主窗口一样具备所需的本地 IPC 能力。
+  - 此类 capability 变更需要完整重启 Tauri 进程，不能只依赖前端热更新。
+
+## 2026-05-22 - 修正独立展开悬浮窗的坐标系，改为跟随主窗口屏幕位置
+
+- **改动**：`src/stores/workspace.ts` 中的 `getCollapsedControlRect()` 不再把独立 `WebviewWindow` 固定到桌面 `(0, 0)`，而是改为基于主窗口的 `outerPosition / innerPosition / scaleFactor` 计算屏幕坐标；`src/App.vue` 额外在主窗口 `onMoved` 时刷新所有原生视图 bounds。
+- **原因**：独立 `WebviewWindow` 的 `x/y` 是相对整个桌面，而不是相对主窗口。此前仍沿用“子 Webview 在主窗口内部”的思维把坐标写成 `(0, 0)`，导致展开按钮实际上出现在桌面左上角而不是应用顶部，所以用户在软件里看不到。
+- **影响**：
+  - 收起态展开按钮现在会跟随主窗口出现在正确的顶部区域。
+  - 主窗口移动、缩放、尺寸变化时，悬浮窗都会一起同步。
+
+## 2026-05-22 - 去掉 overlay-control 脚本里错误的自定位覆盖与早期穿透干扰
+
+- **改动**：移除 `src/overlay-control.ts` 里在恢复时再次调用窗口 `setPosition(0, 0)` 的逻辑，避免把主壳层已计算好的悬浮窗位置重新覆盖成桌面左上角；同时暂时移除脚本内部的 `setIgnoreCursorEvents` 控制与 `showCollapsedControl()` 里的强制切换，先恢复“稳定可见、稳定可点”的基础态。
+- **原因**：即便主壳层已经把独立悬浮窗摆到主窗口顶部，脚本自身后续又把窗口重置到 `(0, 0)`，会再次导致用户在应用内看不到按钮；而窗口级鼠标穿透又增加了额外的显示/交互干扰，不利于先把可见性问题收敛。
+- **影响**：
+  - 展开按钮应优先恢复稳定显示。
+  - 后续如要重新加回“按钮之外区域鼠标穿透”，应在可见性完全稳定后单独迭代，不要与定位链路一起改。
+
+## 2026-05-22 - 初始化展开按钮展示逻辑改为依赖本地状态与工作区状态，不再绑死路由
+
+- **改动**：`src/components/AppShell.vue` 中 `canCollapseHeader` 改为直接依据 `workspace.currentPane === "provider"` 与 `activeProviderId` 判断；恢复收起态和自动展示展开按钮的 watch 也改为监听 `workspace.currentPane / activeProviderId / preferences.headerCollapsed`，不再依赖 `route.path === "/workspace"`。
+- **原因**：用户明确要求“需要根据本地状态初始化展开按钮的展示”。此前初始化链路把“是否应该显示收起态展开按钮”部分绑死在路由字符串上，启动阶段如果工作区状态已恢复但路由切换时序稍晚，就可能错过初始化展示。
+- **影响**：
+  - 只要本地已记住 `headerCollapsed = true` 且本次启动恢复到了某个 provider，壳层就会优先按收起态初始化。
+  - 这条初始化链路后续应继续基于真实业务状态，而不是基于页面路径做隐式判断。
+
+## 2026-05-22 - 补齐独立展开悬浮窗的 window 级定位与尺寸权限
+
+- **改动**：在 `src-tauri/capabilities/default.json` 中为 `overlay:collapsed-control` 所在 capability 额外补充 `core:window:allow-set-position` 与 `core:window:allow-set-size`。
+- **原因**：当前收起按钮已经承载在独立 `WebviewWindow` 中，`workspace.refreshCollapsedControlBounds()` 对它调用的 `setPosition()` / `setSize()` 走的是 `window` 权限，而不是 `webview` 权限。如果这两个权限缺失，哪怕本地缓存已经正确读到 `headerCollapsed = true`，悬浮窗也可能无法被摆到正确位置。
+- **影响**：
+  - 本地收起状态恢复后，独立悬浮窗可以真正按主窗口顶部位置被显示出来。
+  - 这类 capability 变更仍然需要完整重启 Tauri 进程才能生效。
+
+## 2026-05-22 - 独立展开悬浮窗改为“默认鼠标穿透，仅按钮附近接管交互”
+
+- **改动**：`src/overlay-control.ts` 使用窗口级 `setIgnoreCursorEvents` 实现默认穿透；通过定时轮询系统光标位置，只在光标接近按钮矩形附近时临时启用交互，离开后恢复穿透。拖动时继续强制保持可交互。
+- **原因**：用户反馈“展开按钮有了，但依然会遮挡网页内容的点击和 hover”。对于全宽透明悬浮窗，如果整窗始终接管鼠标事件，底层网页就一定会被挡住。
+- **影响**：
+  - 按钮之外的顶部区域应恢复给底层 AI 网页，hover / click 可继续使用。
+  - 按钮本身仍可点击和拖动。
+  - 这类实现依赖窗口级穿透能力，比 DOM `pointer-events` 更适合独立 `WebviewWindow`。
+
 ## 2026-05-21 - 全局禁用右键菜单并覆盖远程子 Webview
 
 - **改动**：在 `src/main.ts` 禁用主壳层右键，在 `src/overlay-control.ts` 禁用收起态悬浮控件右键，并在 `src-tauri/src/lib.rs` 通过 `Builder::on_page_load` 给所有 Webview 注入禁右键脚本。

@@ -25,7 +25,7 @@ const activeProviderName = computed(
   () => workspace.activeProvider?.name ?? t("appShell.currentAiFallback"),
 );
 const canCollapseHeader = computed(
-  () => route.path === "/workspace" && workspace.currentPane === "provider",
+  () => workspace.currentPane === "provider" && Boolean(workspace.activeProviderId),
 );
 
 /**
@@ -180,12 +180,16 @@ onBeforeUnmount(() => {
 });
 
 watch(
-  () => [route.path, workspace.currentPane, workspace.activeProviderId] as const,
-  async ([nextPath, nextPane, nextProviderId]) => {
+  () =>
+    [
+      workspace.currentPane,
+      workspace.activeProviderId,
+      preferences.headerCollapsed,
+    ] as const,
+  async ([nextPane, nextProviderId, nextHeaderCollapsed]) => {
     if (
       !isHeaderCollapsed.value &&
-      preferences.headerCollapsed &&
-      nextPath === "/workspace" &&
+      nextHeaderCollapsed &&
       nextPane === "provider" &&
       nextProviderId
     ) {
@@ -193,10 +197,7 @@ watch(
       return;
     }
 
-    if (
-      isHeaderCollapsed.value &&
-      (nextPath !== "/workspace" || nextPane !== "provider" || !nextProviderId)
-    ) {
+    if (isHeaderCollapsed.value && (nextPane !== "provider" || !nextProviderId)) {
       await expandHeader();
     }
   },

@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { LogicalPosition, LogicalSize } from "@tauri-apps/api/dpi";
 import { Webview } from "@tauri-apps/api/webview";
+import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
@@ -13,9 +14,7 @@ const SHELL_SIDE_PADDING = 0;
 const SHELL_BOTTOM_PADDING = 0;
 const CONTENT_INSET = 0;
 const COLLAPSED_CONTROL_LABEL = "overlay:collapsed-control";
-const COLLAPSED_CONTROL_OVERLAY_SIZE = 44;
-const COLLAPSED_CONTROL_BUTTON_SIZE = 28;
-const COLLAPSED_CONTROL_MARGIN = 8;
+const COLLAPSED_CONTROL_OVERLAY_HEIGHT = 44;
 
 type WebviewRect = {
   x: number;
@@ -73,26 +72,24 @@ export const useWorkspaceStore = defineStore("workspace", () => {
    * 计算收起态展开控件的布局矩形。
    */
   async function getCollapsedControlRect(): Promise<WebviewRect> {
-    const size = await getWindowLogicalSize();
-    const preferences = usePreferencesStore();
-    const centeredLeft = Math.round(
-      (Math.round(size.width) - COLLAPSED_CONTROL_BUTTON_SIZE) / 2,
-    );
-    const preferredLeft = preferences.collapsedControlLeft ?? centeredLeft;
-    const maxLeft = Math.max(
-      Math.round(size.width) - COLLAPSED_CONTROL_BUTTON_SIZE - COLLAPSED_CONTROL_MARGIN,
-      COLLAPSED_CONTROL_MARGIN,
-    );
-    const clampedLeft = Math.min(
-      Math.max(preferredLeft, COLLAPSED_CONTROL_MARGIN),
-      maxLeft,
+    const window = getCurrentWindow();
+    const [size, scaleFactor, outerPosition, innerPosition] = await Promise.all([
+      window.innerSize(),
+      window.scaleFactor(),
+      window.outerPosition(),
+      window.innerPosition(),
+    ]);
+    const logicalSize = size.toLogical(scaleFactor);
+    const titlebarOffsetY = Math.max(
+      Math.round((innerPosition.y - outerPosition.y) / scaleFactor),
+      0,
     );
 
     return {
-      x: Math.max(clampedLeft - COLLAPSED_CONTROL_MARGIN, 0),
-      y: 0,
-      width: COLLAPSED_CONTROL_OVERLAY_SIZE,
-      height: COLLAPSED_CONTROL_OVERLAY_SIZE,
+      x: Math.round(outerPosition.x / scaleFactor),
+      y: Math.round(outerPosition.y / scaleFactor) + titlebarOffsetY,
+      width: Math.max(Math.round(logicalSize.width), 320),
+      height: COLLAPSED_CONTROL_OVERLAY_HEIGHT,
     };
   }
 
@@ -122,7 +119,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
    * 获取收起态展开控件 Webview。
    */
   async function getCollapsedControlWebview() {
-    return Webview.getByLabel(COLLAPSED_CONTROL_LABEL);
+    return WebviewWindow.getByLabel(COLLAPSED_CONTROL_LABEL);
   }
 
   /**
@@ -199,16 +196,20 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     }
 
     const rect = await getCollapsedControlRect();
-    const window = getCurrentWindow();
-
-    const view = new Webview(window, COLLAPSED_CONTROL_LABEL, {
+    const view = new WebviewWindow(COLLAPSED_CONTROL_LABEL, {
       url: "/overlay-control.html",
       x: rect.x,
       y: rect.y,
       width: rect.width,
       height: rect.height,
+      parent: "main",
       focus: false,
       transparent: true,
+      decorations: false,
+      shadow: false,
+      skipTaskbar: true,
+      alwaysOnTop: true,
+      visible: false,
       zoomHotkeysEnabled: false,
       dragDropEnabled: false,
     });
@@ -216,7 +217,6 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     await new Promise<void>((resolve, reject) => {
       void view.once("tauri://created", async () => {
         try {
-          await view.setAutoResize(false);
           resolve();
         } catch (error) {
           reject(error);

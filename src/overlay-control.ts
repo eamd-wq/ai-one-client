@@ -1,35 +1,30 @@
-import { LogicalPosition } from "@tauri-apps/api/dpi";
 import { emitTo } from "@tauri-apps/api/event";
-import { getCurrentWebview } from "@tauri-apps/api/webview";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { cursorPosition, getCurrentWindow } from "@tauri-apps/api/window";
 import { LazyStore } from "@tauri-apps/plugin-store";
 
 const MOVE_THRESHOLD = 3;
 const CONTROL_SIZE = 28;
 const CONTROL_MARGIN = 8;
+const CONTROL_TOP = 8;
+const HOVER_HIT_SLOP = 6;
+const HOVER_POLL_MS = 50;
 const appStore = new LazyStore("app-preferences.json");
 
-let startX = 0;
-let dragged = false;
+let pointerStartX = 0;
+let dragStartLeft = 0;
 let currentLeft = 0;
 let availableWidth = 320;
-let isDragging = false;
+let dragged = false;
+let isPointerDown = false;
+let isHoveringButton = false;
 let rafId: number | null = null;
-let pendingOverlayLeft = 0;
+let pendingLeft = 0;
+let isInteractive = true;
+let isHoverPolling = false;
 
 const buttonElement = getButtonElement();
+const overlayWindow = getCurrentWindow();
 const colorSchemeMedia = globalThis.window.matchMedia("(prefers-color-scheme: dark)");
-const currentOverlayWebview = getCurrentWebview();
-
-function disableOverlayContextMenu() {
-  document.addEventListener(
-    "contextmenu",
-    (event) => {
-      event.preventDefault();
-    },
-    { capture: true },
-  );
-}
 
 function getButtonElement() {
   const element = document.querySelector<HTMLButtonElement>("#collapsed-control");
@@ -38,6 +33,11 @@ function getButtonElement() {
   }
 
   return element;
+}
+
+function clampLeft(nextLeft: number) {
+  const maxLeft = Math.max(availableWidth - CONTROL_SIZE - CONTROL_MARGIN, CONTROL_MARGIN);
+  return Math.min(Math.max(nextLeft, CONTROL_MARGIN), maxLeft);
 }
 
 async function requestExpand() {
@@ -53,13 +53,103 @@ async function persistControlLeft() {
   );
 }
 
+async function syncAvailableWidth() {
+  const [size, scaleFactor] = await Promise.all([
+    overlayWindow.innerSize(),
+    overlayWindow.scaleFactor(),
+  ]);
+
+  availableWidth = Math.max(Math.round(size.toLogical(scaleFactor).width), 320);
+}
+
+async function restoreControlLeft() {
+  await appStore.init();
+  const savedLeft = await appStore.get<number | null>("collapsedControlLeft");
+  await syncAvailableWidth();
+  const centeredLeft = Math.round((availableWidth - CONTROL_SIZE) / 2);
+  currentLeft = clampLeft(savedLeft ?? centeredLeft);
+  commitButtonPosition(currentLeft);
+}
+
+function renderButtonLeft(nextLeft: number) {
+  buttonElement.style.left = `${nextLeft}px`;
+}
+
+function commitButtonPosition(nextLeft: number) {
+  currentLeft = clampLeft(nextLeft);
+  pendingLeft = currentLeft;
+  renderButtonLeft(currentLeft);
+}
+
+function scheduleMove(nextLeft: number) {
+  pendingLeft = clampLeft(nextLeft);
+  renderButtonLeft(pendingLeft);
+
+  if (rafId !== null) {
+    return;
+  }
+
+  rafId = globalThis.requestAnimationFrame(async () => {
+    rafId = null;
+    currentLeft = pendingLeft;
+  });
+}
+
+async function setInteractive(nextInteractive: boolean) {
+  if (isInteractive === nextInteractive) {
+    return;
+  }
+
+  isInteractive = nextInteractive;
+  await overlayWindow.setIgnoreCursorEvents(!nextInteractive);
+}
+
+async function syncHoverState() {
+  if (isHoverPolling) {
+    return;
+  }
+
+  isHoverPolling = true;
+
+  try {
+    if (isPointerDown) {
+      await setInteractive(true);
+      return;
+    }
+
+    const [cursor, outerPosition, scaleFactor] = await Promise.all([
+      cursorPosition(),
+      overlayWindow.outerPosition(),
+      overlayWindow.scaleFactor(),
+    ]);
+
+    const left = outerPosition.x + Math.round(currentLeft * scaleFactor);
+    const top = outerPosition.y + Math.round(CONTROL_TOP * scaleFactor);
+    const size = Math.round(CONTROL_SIZE * scaleFactor);
+    const hitSlop = Math.round(HOVER_HIT_SLOP * scaleFactor);
+    const isCursorNearButton =
+      cursor.x >= left - hitSlop &&
+      cursor.x <= left + size + hitSlop &&
+      cursor.y >= top - hitSlop &&
+      cursor.y <= top + size + hitSlop;
+
+    isHoveringButton = isCursorNearButton;
+    await setInteractive(isCursorNearButton);
+  } finally {
+    isHoverPolling = false;
+  }
+}
+
 function handlePointerDown(event: PointerEvent) {
-  startX = event.clientX;
+  pointerStartX = event.clientX;
+  dragStartLeft = currentLeft;
   dragged = false;
-  isDragging = true;
+  isPointerDown = true;
+  isHoveringButton = true;
   buttonElement.style.transition =
     "border-color 120ms ease, color 120ms ease, background 120ms ease";
   buttonElement.setPointerCapture(event.pointerId);
+  void setInteractive(true);
 }
 
 function handlePointerMove(event: PointerEvent) {
@@ -67,17 +157,32 @@ function handlePointerMove(event: PointerEvent) {
     return;
   }
 
-  const deltaX = event.clientX - startX;
+  const deltaX = event.clientX - pointerStartX;
   if (Math.abs(deltaX) > MOVE_THRESHOLD) {
     dragged = true;
   }
 
-  if (deltaX === 0) {
-    return;
-  }
+  scheduleMove(dragStartLeft + deltaX);
+}
 
-  startX = event.clientX;
-  applyOverlayLeft(currentLeft + deltaX);
+function handlePointerEnter() {
+  isHoveringButton = true;
+  buttonElement.style.transform = "scale(1.04)";
+  buttonElement.style.borderColor = buttonElement.dataset.borderHoverColor ?? "";
+  buttonElement.style.background = buttonElement.dataset.backgroundHoverColor ?? "";
+  buttonElement.style.color = buttonElement.dataset.textHoverColor ?? "";
+  void setInteractive(true);
+}
+
+function handlePointerLeave() {
+  isHoveringButton = false;
+  if (!isPointerDown) {
+    buttonElement.style.transform = "";
+    buttonElement.style.background = buttonElement.dataset.backgroundColor ?? "";
+    buttonElement.style.color = buttonElement.dataset.textColor ?? "";
+    buttonElement.style.borderColor = buttonElement.dataset.borderColor ?? "";
+  }
+  void syncHoverState();
 }
 
 function handlePointerUp(event: PointerEvent) {
@@ -85,11 +190,20 @@ function handlePointerUp(event: PointerEvent) {
     buttonElement.releasePointerCapture(event.pointerId);
   }
 
-  isDragging = false;
+  isPointerDown = false;
   buttonElement.style.transition =
     "transform 120ms ease, border-color 120ms ease, color 120ms ease, background 120ms ease";
-  commitOverlayPosition();
+
+  if (!isHoveringButton) {
+    buttonElement.style.transform = "";
+    buttonElement.style.background = buttonElement.dataset.backgroundColor ?? "";
+    buttonElement.style.color = buttonElement.dataset.textColor ?? "";
+    buttonElement.style.borderColor = buttonElement.dataset.borderColor ?? "";
+  }
+
+  commitButtonPosition(currentLeft);
   void persistControlLeft();
+  void syncHoverState();
 }
 
 function handleClick() {
@@ -99,69 +213,6 @@ function handleClick() {
   }
 
   void requestExpand();
-}
-
-function clampLeft(nextLeft: number) {
-  const maxLeft = Math.max(availableWidth - CONTROL_SIZE - CONTROL_MARGIN, CONTROL_MARGIN);
-
-  return Math.min(Math.max(nextLeft, CONTROL_MARGIN), maxLeft);
-}
-
-function applyOverlayLeft(nextLeft: number) {
-  currentLeft = clampLeft(nextLeft);
-  pendingOverlayLeft = currentLeft;
-
-  if (rafId !== null) {
-    return;
-  }
-
-  rafId = globalThis.requestAnimationFrame(() => {
-    rafId = null;
-    void currentOverlayWebview.setPosition(
-      new LogicalPosition(Math.max(pendingOverlayLeft - CONTROL_MARGIN, 0), 0),
-    );
-  });
-}
-
-function commitOverlayPosition() {
-  if (rafId !== null) {
-    globalThis.cancelAnimationFrame(rafId);
-    rafId = null;
-  }
-
-  void currentOverlayWebview.setPosition(
-    new LogicalPosition(Math.max(currentLeft - CONTROL_MARGIN, 0), 0),
-  );
-}
-
-function setupOverlayLayout() {
-  const centeredLeft = Math.round((availableWidth - CONTROL_SIZE) / 2);
-  currentLeft = clampLeft(currentLeft || centeredLeft);
-
-  if (isDragging) {
-    applyOverlayLeft(currentLeft);
-    return;
-  }
-
-  commitOverlayPosition();
-}
-
-async function syncAvailableWidth() {
-  const currentWindow = getCurrentWindow();
-  const [size, scaleFactor] = await Promise.all([
-    currentWindow.innerSize(),
-    currentWindow.scaleFactor(),
-  ]);
-
-  availableWidth = Math.max(Math.round(size.toLogical(scaleFactor).width), 320);
-  setupOverlayLayout();
-}
-
-async function restoreControlLeft() {
-  await appStore.init();
-  const savedLeft = await appStore.get<number | null>("collapsedControlLeft");
-  currentLeft = savedLeft ?? 0;
-  await syncAvailableWidth();
 }
 
 function getThemePalette() {
@@ -208,6 +259,8 @@ buttonElement.addEventListener("pointerdown", handlePointerDown);
 buttonElement.addEventListener("pointermove", handlePointerMove);
 buttonElement.addEventListener("pointerup", handlePointerUp);
 buttonElement.addEventListener("pointercancel", handlePointerUp);
+buttonElement.addEventListener("pointerenter", handlePointerEnter);
+buttonElement.addEventListener("pointerleave", handlePointerLeave);
 buttonElement.addEventListener("click", handleClick);
 colorSchemeMedia.addEventListener("change", applyThemePalette);
 
@@ -222,7 +275,6 @@ document.body.style.webkitUserSelect = "none";
 document.body.style.width = "100vw";
 document.body.style.height = "44px";
 document.body.style.position = "relative";
-document.body.style.pointerEvents = "none";
 
 buttonElement.style.width = "28px";
 buttonElement.style.height = "28px";
@@ -236,26 +288,11 @@ buttonElement.style.display = "grid";
 buttonElement.style.placeItems = "center";
 buttonElement.style.position = "absolute";
 buttonElement.style.left = `${CONTROL_MARGIN}px`;
-buttonElement.style.top = "8px";
+buttonElement.style.top = `${CONTROL_TOP}px`;
 buttonElement.style.cursor = "pointer";
-buttonElement.style.pointerEvents = "auto";
 buttonElement.style.outline = "none";
 buttonElement.style.transition =
   "transform 120ms ease, border-color 120ms ease, color 120ms ease, background 120ms ease";
-
-buttonElement.addEventListener("mouseenter", () => {
-  buttonElement.style.transform = "scale(1.04)";
-  buttonElement.style.borderColor = buttonElement.dataset.borderHoverColor ?? "";
-  buttonElement.style.background = buttonElement.dataset.backgroundHoverColor ?? "";
-  buttonElement.style.color = buttonElement.dataset.textHoverColor ?? "";
-});
-
-buttonElement.addEventListener("mouseleave", () => {
-  buttonElement.style.borderColor = "rgba(255, 255, 255, 0.16)";
-  buttonElement.style.background = buttonElement.dataset.backgroundColor ?? "";
-  buttonElement.style.color = buttonElement.dataset.textColor ?? "";
-  buttonElement.style.borderColor = buttonElement.dataset.borderColor ?? "";
-});
 
 buttonElement.querySelectorAll<HTMLElement>(".line").forEach((lineElement) => {
   lineElement.style.position = "absolute";
@@ -281,9 +318,12 @@ if (secondaryLine) {
   secondaryLine.style.opacity = "0.68";
 }
 
-disableOverlayContextMenu();
 applyThemePalette();
 void restoreControlLeft();
-void getCurrentWindow().onResized(() => {
+globalThis.window.setInterval(() => {
+  void syncHoverState();
+}, HOVER_POLL_MS);
+void syncHoverState();
+void overlayWindow.onResized(() => {
   void syncAvailableWidth();
 });
