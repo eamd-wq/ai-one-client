@@ -70,9 +70,9 @@ fn disable_context_menu_for_webview<R: tauri::Runtime>(webview: &tauri::Webview<
 }
 
 /**
- * 恢复主窗口显示，并通知前端同步收起态悬浮展开按钮。
+ * 恢复主窗口显示。
  */
-fn restore_main_window<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
+fn show_main_window_fallback<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
   let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) else {
     return Ok(());
   };
@@ -83,9 +83,16 @@ fn restore_main_window<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
 
   window.show()?;
   window.set_focus()?;
-  let _ = app.emit_to(MAIN_WINDOW_LABEL, RESTORE_FROM_TRAY_EVENT, ());
 
   Ok(())
+}
+
+/**
+ * 请求打开主窗口，优先复用前端快捷键展示链路，同时保留 Rust 侧兜底显示。
+ */
+fn request_show_main_window<R: Runtime>(app: &AppHandle<R>) {
+  let _ = app.emit(RESTORE_FROM_TRAY_EVENT, ());
+  let _ = show_main_window_fallback(app);
 }
 
 /**
@@ -93,7 +100,7 @@ fn restore_main_window<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
  */
 fn handle_tray_menu_event<R: Runtime>(app: &AppHandle<R>, event: MenuEvent) {
   if event.id() == TRAY_MENU_SHOW_ID {
-    let _ = restore_main_window(app);
+    request_show_main_window(app);
     return;
   }
 
@@ -106,17 +113,23 @@ fn handle_tray_menu_event<R: Runtime>(app: &AppHandle<R>, event: MenuEvent) {
  * 统一处理托盘图标点击事件；当前仅在 Windows 左键弹出恢复主窗口。
  */
 fn handle_tray_icon_event<R: Runtime>(app: &AppHandle<R>, event: TrayIconEvent) {
-  if cfg!(target_os = "windows")
-    && matches!(
-      event,
-      TrayIconEvent::Click {
+  if !cfg!(target_os = "windows") {
+    return;
+  }
+
+  if matches!(
+    event,
+    TrayIconEvent::Click {
+      button: MouseButton::Left,
+      button_state: MouseButtonState::Up,
+      ..
+    }
+      | TrayIconEvent::DoubleClick {
         button: MouseButton::Left,
-        button_state: MouseButtonState::Up,
         ..
       }
-    )
-  {
-    let _ = restore_main_window(app);
+  ) {
+    request_show_main_window(app);
   }
 }
 
