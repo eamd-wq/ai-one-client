@@ -50,6 +50,32 @@ async function changeLanguage(language: AppLanguage) {
 }
 
 /**
+ * 更新系统开机自启状态。
+ */
+async function changeAutoStartEnabled(nextEnabled: boolean) {
+  errorMessage.value = "";
+  successMessage.value = "";
+
+  try {
+    await preferences.setAutoStartEnabled(nextEnabled);
+    successMessage.value = t("settingsPage.autoStartUpdated");
+  } catch (error) {
+    errorMessage.value =
+      error instanceof Error ? error.message : t("settingsPage.autoStartUpdateFailed");
+  }
+}
+
+/**
+ * 更新静默启动开关。
+ */
+async function changeSilentLaunchEnabled(nextEnabled: boolean) {
+  errorMessage.value = "";
+  successMessage.value = "";
+  await preferences.setSilentLaunchEnabled(nextEnabled);
+  successMessage.value = t("settingsPage.silentLaunchUpdated");
+}
+
+/**
  * 更新关闭主窗口时的默认行为。
  */
 async function changeCloseBehavior(nextBehavior: WindowCloseBehavior) {
@@ -79,6 +105,30 @@ function handleClosePromptChange(event: globalThis.Event) {
   }
 
   void changeClosePromptEnabled(target.checked);
+}
+
+/**
+ * 处理开机自启开关切换。
+ */
+function handleAutoStartChange(event: globalThis.Event) {
+  const target = event.target;
+  if (!(target instanceof globalThis.HTMLInputElement)) {
+    return;
+  }
+
+  void changeAutoStartEnabled(target.checked);
+}
+
+/**
+ * 处理静默启动开关切换。
+ */
+function handleSilentLaunchChange(event: globalThis.Event) {
+  const target = event.target;
+  if (!(target instanceof globalThis.HTMLInputElement)) {
+    return;
+  }
+
+  void changeSilentLaunchEnabled(target.checked);
 }
 
 /**
@@ -150,7 +200,7 @@ async function resetShortcut() {
 </script>
 
 <template>
-  <section class="h-full overflow-auto px-6 py-8">
+  <section class="scrollbar-hidden h-full overflow-y-auto overflow-x-hidden px-6 py-8">
     <div class="mx-auto flex max-w-[900px] flex-col gap-6">
       <div>
         <div class="font-display text-[2rem] tracking-[0.14em] text-[var(--app-text)]">
@@ -263,6 +313,120 @@ async function resetShortcut() {
             >
               {{ tLanguage(language) }}
             </button>
+          </div>
+        </article>
+
+        <article class="rounded-[20px] border border-[var(--app-border)] bg-[var(--app-bg-strong)] p-5 md:col-span-2">
+          <div class="text-sm uppercase tracking-[0.22em] text-[var(--app-text-soft)]">
+            {{ t("settingsPage.launchEyebrow") }}
+          </div>
+
+          <div class="mt-5 grid gap-4">
+            <label
+              class="flex items-center gap-4 rounded-[18px] border border-[var(--app-border)] bg-[var(--app-bg-elevated)] px-5 py-4 transition hover:border-[rgba(22,186,128,0.32)] hover:bg-[var(--app-accent-soft)]"
+            >
+              <span
+                class="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-[18px] border border-[var(--app-border)] bg-[rgba(255,255,255,0.72)] text-[rgb(255,122,26)] shadow-[0_10px_24px_rgba(18,24,33,0.08)]"
+              >
+                <svg
+                  aria-hidden="true"
+                  class="h-6 w-6"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.9"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M12 3v8" />
+                  <path d="M7.05 5.95a8 8 0 1 0 9.9 0" />
+                </svg>
+              </span>
+
+              <span class="min-w-0 flex-1">
+                <span class="block text-lg font-semibold text-[var(--app-text)]">
+                  {{ t("settingsPage.autoStartTitle") }}
+                </span>
+                <span class="mt-1 block text-sm leading-6 text-[var(--app-text-soft)]">
+                  {{ t("settingsPage.autoStartDescription") }}
+                </span>
+              </span>
+
+              <span class="relative inline-flex h-8 w-14 shrink-0 items-center">
+                <input
+                  class="peer sr-only"
+                  type="checkbox"
+                  :checked="preferences.autoStartEnabled"
+                  @change="handleAutoStartChange"
+                >
+                <span
+                  class="absolute inset-0 rounded-full transition"
+                  :class="
+                    preferences.autoStartEnabled
+                      ? 'bg-[rgb(22,186,128)] shadow-[0_10px_24px_rgba(22,186,128,0.25)]'
+                      : 'bg-[rgba(126,141,156,0.32)]'
+                  "
+                />
+                <span
+                  class="absolute left-1 top-1 h-6 w-6 rounded-full bg-white shadow-[0_6px_18px_rgba(18,24,33,0.18)] transition"
+                  :class="preferences.autoStartEnabled ? 'translate-x-6' : 'translate-x-0'"
+                />
+              </span>
+            </label>
+
+            <label
+              class="flex items-center gap-4 rounded-[18px] border border-[var(--app-border)] bg-[var(--app-bg-elevated)] px-5 py-4 transition hover:border-[rgba(22,186,128,0.32)] hover:bg-[var(--app-accent-soft)]"
+            >
+              <span
+                class="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-[18px] border border-[var(--app-border)] bg-[rgba(255,255,255,0.72)] text-[rgb(22,186,128)] shadow-[0_10px_24px_rgba(18,24,33,0.08)]"
+              >
+                <svg
+                  aria-hidden="true"
+                  class="h-6 w-6"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.9"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M2 12s3.6-6 10-6c2.15 0 4.02.67 5.58 1.65" />
+                  <path d="M22 12s-3.6 6-10 6c-2.15 0-4.02-.67-5.58-1.65" />
+                  <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" />
+                  <path d="M3 3l18 18" />
+                </svg>
+              </span>
+
+              <span class="min-w-0 flex-1">
+                <span class="block text-lg font-semibold text-[var(--app-text)]">
+                  {{ t("settingsPage.silentLaunchTitle") }}
+                </span>
+                <span class="mt-1 block text-sm leading-6 text-[var(--app-text-soft)]">
+                  {{ t("settingsPage.silentLaunchDescription") }}
+                </span>
+              </span>
+
+              <span class="relative inline-flex h-8 w-14 shrink-0 items-center">
+                <input
+                  class="peer sr-only"
+                  type="checkbox"
+                  :checked="preferences.silentLaunchEnabled"
+                  @change="handleSilentLaunchChange"
+                >
+                <span
+                  class="absolute inset-0 rounded-full transition"
+                  :class="
+                    preferences.silentLaunchEnabled
+                      ? 'bg-[rgb(22,186,128)] shadow-[0_10px_24px_rgba(22,186,128,0.25)]'
+                      : 'bg-[rgba(126,141,156,0.32)]'
+                  "
+                />
+                <span
+                  class="absolute left-1 top-1 h-6 w-6 rounded-full bg-white shadow-[0_6px_18px_rgba(18,24,33,0.18)] transition"
+                  :class="preferences.silentLaunchEnabled ? 'translate-x-6' : 'translate-x-0'"
+                />
+              </span>
+            </label>
           </div>
         </article>
 

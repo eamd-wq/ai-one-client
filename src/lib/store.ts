@@ -10,6 +10,8 @@ export const defaultPreferences: PreferencesSnapshot = {
   camp: "domestic",
   themeMode: "system",
   shortcut: "Shift+Alt+W",
+  autoStartEnabled: true,
+  silentLaunchEnabled: true,
   closeBehavior: "tray",
   closePromptEnabled: true,
   lastProviderId: null,

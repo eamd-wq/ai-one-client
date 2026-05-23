@@ -1,3 +1,9 @@
+import {
+  disable as disableAutoStart,
+  enable as enableAutoStart,
+  isEnabled as isAutoStartEnabled,
+} from "@tauri-apps/plugin-autostart";
+import { invoke } from "@tauri-apps/api/core";
 import { currentMonitor, getCurrentWindow } from "@tauri-apps/api/window";
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
@@ -13,6 +19,8 @@ import type {
   WindowCloseBehavior,
 } from "../types/provider";
 
+const AUTOSTART_REGISTRATION_VERSION = 1;
+
 /**
  * 偏好设置 store，负责阵营、主题、快捷键、上次选择与自定义渠道持久化。
  */
@@ -22,6 +30,8 @@ export const usePreferencesStore = defineStore("preferences", () => {
   const camp = ref<ProviderCamp>(defaultPreferences.camp);
   const themeMode = ref<ThemeMode>(defaultPreferences.themeMode);
   const shortcut = ref(defaultPreferences.shortcut);
+  const autoStartEnabled = ref(defaultPreferences.autoStartEnabled);
+  const silentLaunchEnabled = ref(defaultPreferences.silentLaunchEnabled);
   const closeBehavior = ref<WindowCloseBehavior>(defaultPreferences.closeBehavior);
   const closePromptEnabled = ref(defaultPreferences.closePromptEnabled);
   const lastProviderId = ref<string | null>(defaultPreferences.lastProviderId);
@@ -31,6 +41,7 @@ export const usePreferencesStore = defineStore("preferences", () => {
     defaultPreferences.collapsedControlLeft,
   );
   const appliedTheme = ref<"light" | "dark">("light");
+  const startupSilentLaunch = ref(false);
 
   /**
    * 从持久化存储读取偏好设置。
@@ -49,6 +60,12 @@ export const usePreferencesStore = defineStore("preferences", () => {
       (await appStore.get<ThemeMode>("themeMode")) ?? defaultPreferences.themeMode;
     shortcut.value =
       (await appStore.get<string>("shortcut")) ?? defaultPreferences.shortcut;
+    autoStartEnabled.value =
+      (await appStore.get<boolean>("autoStartEnabled")) ??
+      defaultPreferences.autoStartEnabled;
+    silentLaunchEnabled.value =
+      (await appStore.get<boolean>("silentLaunchEnabled")) ??
+      defaultPreferences.silentLaunchEnabled;
     closeBehavior.value =
       (await appStore.get<WindowCloseBehavior>("closeBehavior")) ??
       defaultPreferences.closeBehavior;
@@ -67,6 +84,44 @@ export const usePreferencesStore = defineStore("preferences", () => {
     collapsedControlLeft.value =
       (await appStore.get<number | null>("collapsedControlLeft")) ??
       defaultPreferences.collapsedControlLeft;
+
+    let launchedFromAutostart = false;
+    try {
+      launchedFromAutostart = await invoke<boolean>("is_launched_from_autostart");
+    } catch (error) {
+      console.warn("Failed to detect autostart launch context.", error);
+    }
+
+    startupSilentLaunch.value =
+      silentLaunchEnabled.value && autoStartEnabled.value && launchedFromAutostart;
+
+    try {
+      const systemAutoStartEnabled = await isAutoStartEnabled();
+      const autoStartRegistrationVersion =
+        (await appStore.get<number>("autoStartRegistrationVersion")) ?? 0;
+
+      if (autoStartEnabled.value) {
+        if (
+          !systemAutoStartEnabled ||
+          autoStartRegistrationVersion < AUTOSTART_REGISTRATION_VERSION
+        ) {
+          await enableAutoStart();
+        }
+      } else if (systemAutoStartEnabled) {
+        await disableAutoStart();
+      }
+
+      autoStartEnabled.value = await isAutoStartEnabled();
+      await appStore.set("autoStartEnabled", autoStartEnabled.value);
+      if (autoStartEnabled.value) {
+        await appStore.set(
+          "autoStartRegistrationVersion",
+          AUTOSTART_REGISTRATION_VERSION,
+        );
+      }
+    } catch (error) {
+      console.warn("Failed to synchronize autostart state.", error);
+    }
 
     await syncTheme();
 
@@ -131,6 +186,32 @@ export const usePreferencesStore = defineStore("preferences", () => {
   }
 
   /**
+   * 更新系统开机自启状态，并同步回本地偏好。
+   */
+  async function setAutoStartEnabled(nextEnabled: boolean) {
+    if (nextEnabled) {
+      await enableAutoStart();
+      await appStore.set(
+        "autoStartRegistrationVersion",
+        AUTOSTART_REGISTRATION_VERSION,
+      );
+    } else {
+      await disableAutoStart();
+    }
+
+    autoStartEnabled.value = nextEnabled;
+    await appStore.set("autoStartEnabled", nextEnabled);
+  }
+
+  /**
+   * 更新静默启动开关；仅影响后续新的启动会话。
+   */
+  async function setSilentLaunchEnabled(nextEnabled: boolean) {
+    silentLaunchEnabled.value = nextEnabled;
+    await appStore.set("silentLaunchEnabled", nextEnabled);
+  }
+
+  /**
    * 更新关闭窗口时的默认行为。
    */
   async function setCloseBehavior(nextBehavior: WindowCloseBehavior) {
@@ -168,6 +249,13 @@ export const usePreferencesStore = defineStore("preferences", () => {
   async function setCollapsedControlLeft(nextLeft: number | null) {
     collapsedControlLeft.value = nextLeft;
     await appStore.set("collapsedControlLeft", nextLeft);
+  }
+
+  /**
+   * 标记本次启动的静默隐藏流程已经处理完成。
+   */
+  function clearStartupSilentLaunch() {
+    startupSilentLaunch.value = false;
   }
 
   /**
@@ -225,6 +313,8 @@ export const usePreferencesStore = defineStore("preferences", () => {
     camp: camp.value,
     themeMode: themeMode.value,
     shortcut: shortcut.value,
+    autoStartEnabled: autoStartEnabled.value,
+    silentLaunchEnabled: silentLaunchEnabled.value,
     closeBehavior: closeBehavior.value,
     closePromptEnabled: closePromptEnabled.value,
     lastProviderId: lastProviderId.value,
@@ -239,6 +329,8 @@ export const usePreferencesStore = defineStore("preferences", () => {
     camp,
     themeMode,
     shortcut,
+    autoStartEnabled,
+    silentLaunchEnabled,
     closeBehavior,
     closePromptEnabled,
     lastProviderId,
@@ -253,11 +345,15 @@ export const usePreferencesStore = defineStore("preferences", () => {
     setLanguage,
     setThemeMode,
     setShortcut,
+    setAutoStartEnabled,
+    setSilentLaunchEnabled,
     setCloseBehavior,
     setClosePromptEnabled,
     setLastProviderId,
     setHeaderCollapsed,
     setCollapsedControlLeft,
+    startupSilentLaunch,
+    clearStartupSilentLaunch,
     addCustomProvider,
     removeCustomProvider,
     getWorkspaceBounds,

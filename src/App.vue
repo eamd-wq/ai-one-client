@@ -140,6 +140,20 @@ async function handleRestoreFromTray() {
 }
 
 /**
+ * 如果本次启动被配置为静默启动，则在壳层与子 Webview 恢复完成后隐藏主窗口。
+ */
+async function handleSilentLaunchIfNeeded() {
+  if (!preferences.startupSilentLaunch || hotkey.startupConflictMessage) {
+    preferences.clearStartupSilentLaunch();
+    return;
+  }
+
+  await workspace.syncCollapsedControlVisibilityWithMainWindow(false);
+  await getCurrentWindow().hide();
+  preferences.clearStartupSilentLaunch();
+}
+
+/**
  * 启动应用主流程。
  */
 onMounted(async () => {
@@ -180,10 +194,14 @@ onMounted(async () => {
   }
 
   if (hotkey.startupConflictMessage) {
+    preferences.clearStartupSilentLaunch();
     globalThis.window.alert(hotkey.startupConflictMessage);
     await workspace.showSettings();
     await router.replace("/settings");
+    return;
   }
+
+  await handleSilentLaunchIfNeeded();
 });
 
 onBeforeUnmount(() => {

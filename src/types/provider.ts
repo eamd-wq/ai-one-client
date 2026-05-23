@@ -40,6 +40,8 @@ export interface PreferencesSnapshot {
   camp: ProviderCamp;
   themeMode: ThemeMode;
   shortcut: string;
+  autoStartEnabled: boolean;
+  silentLaunchEnabled: boolean;
   closeBehavior: WindowCloseBehavior;
   closePromptEnabled: boolean;
   lastProviderId: string | null;

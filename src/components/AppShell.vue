@@ -61,6 +61,11 @@ async function restoreHeaderState() {
   if (preferences.headerCollapsed && canCollapseHeader.value) {
     isHeaderCollapsed.value = true;
     await workspace.setShellTopOffset(0);
+    if (preferences.startupSilentLaunch) {
+      await workspace.hideCollapsedControl();
+      return;
+    }
+
     await workspace.showCollapsedControl();
     return;
   }

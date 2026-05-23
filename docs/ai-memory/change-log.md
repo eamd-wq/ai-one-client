@@ -1,5 +1,59 @@
 # Change Log
 
+## 2026-05-23 - 修正静默启动语义，仅在系统开机自启时隐藏到托盘
+
+- **改动**：将 `src-tauri/src/lib.rs` 中的 autostart 插件改为为系统开机自启入口附带 `--autostart` 参数，并新增 `is_launched_from_autostart` 命令；`src/stores/preferences.ts` 改为只有在“静默启动开关开启 + 开机自启开启 + 当前进程确实由 autostart 拉起”三者同时满足时，才把 `startupSilentLaunch` 置为 `true`；设置页静默启动说明文案也同步改为“仅开机自启时静默”。
+- **原因**：用户反馈当前实现把所有启动都当成了静默启动，导致首次手动打开应用也直接缩到托盘，影响正常使用。
+- **影响**：
+  - 用户手动双击启动应用时会正常显示主窗口。
+  - 只有系统开机自动拉起应用时，才会按“静默启动”配置隐藏到托盘。
+  - 原有“静默启动时不要让收起态悬浮按钮残留到桌面”的保护逻辑继续保留。
+
+## 2026-05-23 - 版本升级到 0.1.7 并重新产出 Windows NSIS 安装包
+
+- **改动**：将 `package.json`、`src-tauri/Cargo.toml` 与 `src-tauri/tauri.conf.json` 的版本号统一从 `0.1.6` 升到 `0.1.7`，并重新执行 `pnpm tauri build --bundles nsis`。
+- **原因**：用户要求在当前这轮功能与视觉调整后，再升级一个版本并重新打出最新的 Windows 安装包。
+- **影响**：
+  - 新版本号现在统一为 `0.1.7`。
+  - 会产出新的 Windows 安装包：`src-tauri/target/release/bundle/nsis/AIClientCore_0.1.7_x64-setup.exe`。
+  - 本次发版会以实际 `pnpm tauri build --bundles nsis` 成功为准。
+
+## 2026-05-23 - 隐藏设置页原生滚动条
+
+- **改动**：将 `src/pages/SettingsPage.vue` 的外层滚动容器改为复用 `scrollbar-hidden`，保留纵向滚动能力，同时隐藏原生滚动条。
+- **原因**：用户要求设置页也不要显示滚动条，和快速切换 AI 页面保持一致的桌面壳层观感。
+- **影响**：
+  - 设置项较多时仍可正常滚动访问完整内容。
+  - 设置页现在不会再显示原生滚动条。
+
+## 2026-05-23 - 将开机自启与静默启动默认值调整为开启
+
+- **改动**：将 `defaultPreferences` 中的 `autoStartEnabled` 与 `silentLaunchEnabled` 默认值从 `false` 调整为 `true`，并把 `preferences.init()` 里的开机自启同步逻辑改为“以本地偏好为准，对齐系统真实自启状态”，而不是单纯用系统状态覆盖本地默认值。
+- **原因**：用户要求“开机自启”和“静默启动”默认开启；如果只改前端默认值而不补系统同步逻辑，新用户首次启动时系统自启仍可能保持关闭，和产品默认行为不一致。
+- **影响**：
+  - 新用户 / 未持久化这两个字段的场景下，应用会默认启用开机自启与静默启动。
+  - 已经明确保存过这两个开关状态的老用户仍按各自历史偏好执行，不会被强制改写。
+  - 开机自启现在会在启动时主动对齐到本地偏好，避免出现“默认显示开启但系统未注册自启”的假状态。
+
+## 2026-05-23 - 替换应用 Logo 并重生成全部平台图标资源
+
+- **改动**：使用用户提供的 `C:\Users\z2818\Pictures\shuang\logo-mali.png` 作为新 Logo，先做一次居中方形裁剪，再通过 `pnpm tauri icon` 覆盖重生成 `src-tauri/icons/` 下的 `png / ico / icns / Windows Store / iOS / Android` 图标资源。
+- **原因**：用户要求把应用 Logo 更换为新的本地图像，并使用合适工具裁剪生成桌面应用所需的各尺寸图标，旧 Logo 可直接替换掉。
+- **影响**：
+  - Windows、macOS、iOS、Android 对应的图标资源现在统一切换到新 Logo。
+  - 临时裁剪文件已清理，仓库里只保留正式图标资源。
+  - `pnpm tauri build --bundles nsis` 已通过，新的 Windows 安装包已重新生成。
+
+## 2026-05-23 - 新增开机自启与静默启动设置
+
+- **改动**：接入官方 `tauri-plugin-autostart` / `@tauri-apps/plugin-autostart`，为 `preferences` 新增 `autoStartEnabled` 与 `silentLaunchEnabled` 持久化字段；设置页新增“开机自启 / 静默启动”两张卡片式开关；应用启动时如果开启静默启动，会在恢复工作区与路由后自动隐藏主窗口并同步隐藏收起态悬浮展开按钮。
+- **原因**：用户要求支持在设置页开启/关闭系统开机自启，并额外提供一个“静默启动”开关，让应用启动后直接缩小到托盘运行。
+- **影响**：
+  - Windows / macOS 后续都走官方 autostart 插件链路，不再需要自定义开机项脚本。
+  - 静默启动现在是一个独立开关，并会在下次启动时生效。
+  - 为避免回归，收起态展开按钮在静默启动阶段不会提前显示到桌面。
+  - `pnpm typecheck`、`pnpm lint`、`pnpm build` 与 `cargo check` 已通过。
+
 ## 2026-05-23 - 版本升级到 0.1.6 并重新产出 Windows NSIS 安装包
 
 - **改动**：将 `package.json`、`src-tauri/Cargo.toml` 与 `src-tauri/tauri.conf.json` 的版本号统一从 `0.1.5` 升到 `0.1.6`，并重新执行 `pnpm tauri build --bundles nsis`。
