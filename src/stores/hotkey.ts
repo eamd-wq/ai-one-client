@@ -95,13 +95,11 @@ export const useHotkeyStore = defineStore("hotkey", () => {
     const workspace = useWorkspaceStore();
     const minimized = await currentWindow.isMinimized();
 
-    // Windows 下最小化窗口可能仍会返回 visible=true，因此恢复时要单独处理最小化状态。
-    await currentWindow.show();
-
     if (minimized) {
       await currentWindow.unminimize();
     }
 
+    await currentWindow.show();
     await workspace.syncCollapsedControlVisibilityWithMainWindow(true);
 
     try {

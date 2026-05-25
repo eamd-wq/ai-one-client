@@ -6,6 +6,7 @@
 - The new rule is: if the app is hidden, minimized, or not focused, the shortcut restores it to the front; only when the app is already focused in the foreground does the shortcut hide it.
 - Added a dedicated `revealAppWindow()` path that calls `show()`, `unminimize()` when needed, and briefly toggles `setAlwaysOnTop(true/false)` before `setFocus()` to make Windows restore more reliable.
 - This fixes the case where minimizing first and then pressing the shortcut would hide the app into a harder-to-restore state instead of bringing it back.
+- Follow-up fix: `src/stores/hotkey.ts` now restores minimized windows in the order `unminimize() -> show()`, and `src-tauri/capabilities/default.json` explicitly grants `core:window:allow-unminimize`. Without that capability, the minimized branch could be hit but still fail to bring the window back.
 
 ## 2026-05-23 - 修正静默启动语义，仅在系统开机自启时隐藏到托盘
 
