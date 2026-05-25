@@ -76,23 +76,46 @@ export const useHotkeyStore = defineStore("hotkey", () => {
   }
 
   /**
+   * 将主窗口恢复到最前。
+   */
+  async function revealAppWindow() {
+    const currentWindow = getCurrentWindow();
+    const minimized = await currentWindow.isMinimized();
+
+    // Windows 下最小化窗口可能仍会返回 visible=true，因此恢复逻辑需要单独处理。
+    await currentWindow.show();
+
+    if (minimized) {
+      await currentWindow.unminimize();
+    }
+
+    try {
+      await currentWindow.setAlwaysOnTop(true);
+      await currentWindow.setFocus();
+    } finally {
+      await currentWindow.setAlwaysOnTop(false);
+    }
+
+    await currentWindow.setFocus();
+  }
+
+  /**
    * 切换应用显示状态。
    */
   async function toggleAppVisibility() {
     const currentWindow = getCurrentWindow();
-    const visible = await currentWindow.isVisible();
+    const [visible, minimized, focused] = await Promise.all([
+      currentWindow.isVisible(),
+      currentWindow.isMinimized(),
+      currentWindow.isFocused(),
+    ]);
 
-    if (visible) {
-      await currentWindow.hide();
+    if (!visible || minimized || !focused) {
+      await revealAppWindow();
       return;
     }
 
-    if (await currentWindow.isMinimized()) {
-      await currentWindow.unminimize();
-    }
-
-    await currentWindow.show();
-    await currentWindow.setFocus();
+    await currentWindow.hide();
   }
 
   /**

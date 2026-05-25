@@ -25,7 +25,7 @@
 3. 主窗口负责模型选择页、设置页、快速切换入口、主题同步与全局状态管理。
 4. 每个 AI 对话页使用惰性创建、可复用的远程子 `Webview` 承载，隐藏时保留登录态和会话状态。
 5. 用户偏好与上次选择使用 `@tauri-apps/plugin-store` 持久化。
-6. 全局快捷键使用 `@tauri-apps/plugin-global-shortcut`，默认值为 `Shift+Alt+W`，支持修改与持久化。
+6. 全局快捷键使用 `@tauri-apps/plugin-global-shortcut`，默认值为 `Shift+Alt+W`，支持修改与持久化；Windows 下切换显示状态时不能只看 `isVisible()`，还要同时判断 `isMinimized()` 与 `isFocused()`，否则最小化窗口会被误判成“仍在显示”，导致快捷键先隐藏再无法稳定恢复。
 7. 主题同步采用“双层策略”：
    - 本地壳层通过 CSS 变量与 Tauri 窗口主题同步。
    - 远程 AI 视图通过 Rust 命令向子 `Webview` 注入主题脚本，同步 `data-theme`、类名与 `color-scheme`。
