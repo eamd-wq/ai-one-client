@@ -6,7 +6,7 @@
 2. 当前已验证通过前端 `typecheck`、`lint`、`build`，以及 `pnpm tauri build --bundles nsis`。
 3. 当前可交付产物包括：
    - `src-tauri/target/release/aiclientcore.exe`
-   - `src-tauri/target/release/bundle/nsis/AIClientCore_0.1.1_x64-setup.exe`
+   - `src-tauri/target/release/bundle/nsis/AIClientCore_0.1.7_x64-setup.exe`
 
 ## 目标技术栈
 
@@ -52,6 +52,16 @@
 28. 对这个桌面壳层来说，外层页面高度要优先使用 `h-screen` / `h-full`，不要在承载路由页的壳层继续使用 `min-h-screen`；否则内容会把页面实际高度撑长，但外层又禁了全局滚动，最终会让内部滚动区域失效。
 29. 快速切换 AI 页面的 provider 列表当前使用 `scrollbar-hidden` 样式类隐藏原生滚动条，但仍保留 `overflow-y-auto`；后续若继续调整该区域，避免把滚动条隐藏和滚动能力一起删掉。
 30. “禁用右键菜单”不能只在 Vue 主壳层里监听 `contextmenu`；远程 AI 页面运行在独立子 `Webview` 中，必须额外在 `src-tauri/src/lib.rs` 里通过 `Builder::on_page_load` 给每个 Webview 注入禁右键脚本，悬浮展开控件 `overlay-control.ts` 也要单独拦截。
+31. 收起态展开按钮当前承载在独立 `WebviewWindow` 中，它不会随主窗口 `hide()` 自动联动；凡是通过快捷键或其他路径隐藏主窗口时，都要同步调用 `workspace.syncCollapsedControlVisibilityWithMainWindow(false)`，恢复显示时也要按 `headerCollapsed + provider` 状态重新决定是否显示。
+32. 主窗口关闭行为当前在 `src/App.vue` 通过 `getCurrentWindow().onCloseRequested(...)` 拦截；如果要“真正退出应用”，必须调用 Rust 命令 `exit_application`，不要直接走前端 `currentWindow.close()`，否则会再次命中关闭拦截。
+33. 托盘 / macOS 菜单栏图标由 `src-tauri/src/lib.rs` 中的 `TrayIconBuilder` 创建，依赖 `src-tauri/Cargo.toml` 里的 `tauri` feature `tray-icon`；当前约定是 Windows 左键恢复主窗口，macOS 左键保留菜单，恢复后通过事件 `app:restore-from-tray` 通知前端同步收起态悬浮展开按钮。
+34. 关闭窗口相关持久化偏好当前保存在 `preferences.closeBehavior` 与 `preferences.closePromptEnabled`；设置页与关闭提示框都必须共用这两个字段，避免出现“设置页和实际关闭行为不一致”的双状态。
+35. 主壳层里的 DOM 弹框默认盖不住 provider 原生子 `Webview`；凡是要在主窗口上弹确认框、引导层或其他模态内容时，都要先临时隐藏当前 provider 子 `Webview`，结束后再按场景恢复，否则用户看到的会是“弹框被网页盖住”或“只有遮罩没有面板”。
+36. 当前托盘恢复链路统一挂在 `tauri::Builder::on_menu_event` 与 `tauri::Builder::on_tray_icon_event` 上，由 `src-tauri/src/lib.rs` 内的 `handle_tray_menu_event()` / `handle_tray_icon_event()` 分发；不要再把“打开面板 / 退出应用”只绑在 `TrayIconBuilder` 的局部回调里，否则排查“托盘菜单点击无效”时会更分散、更难定位。
+37. 前端托盘恢复链路现在应优先直接复用 `src/stores/hotkey.ts` 的 `showAppWindow()`，不要在 `App.vue` 再复制一套 `unminimize -> show -> syncCollapsedControlVisibilityWithMainWindow(true) -> setFocus`。只有这样，托盘“打开面板”和全局快捷键“显示窗口”才能稳定走同一条已验证过的展示链路。
+38. Windows 下托盘图标的左键单击与双击恢复现在都统一走 `request_show_main_window()`；这条函数会先广播 `app:restore-from-tray` 事件给前端复用 `showAppWindow()`，再用 Rust 的 `show_main_window_fallback()` 做一次原生兜底。后续如果再遇到“托盘点了没反应”，优先检查这两个层次是否同时还在。
+39. 开机自启当前接入的是官方 `tauri-plugin-autostart` / `@tauri-apps/plugin-autostart`，主壳层 capability 需要包含 `autostart:default`；设置页展示的“开机自启”状态应优先通过插件 `isEnabled()` 与系统真实状态同步，而不是只相信本地 store 里上次保存的值。
+40. 静默启动当前通过本地偏好 `preferences.silentLaunchEnabled` 持久化；运行时还会派生一个只属于本次进程启动的 `startupSilentLaunch` 标记。这个标记不能再简单等于 `silentLaunchEnabled`，而必须同时满足“用户开启了静默启动 + 用户开启了开机自启 + 当前进程确实带着 autostart 启动参数拉起”。当前 Rust 侧通过 `tauri-plugin-autostart::Builder::arg("--autostart")` 给系统开机自启入口追加参数，并暴露 `is_launched_from_autostart` 命令给前端判断。`AppShell` 在该标记为 `true` 时不能提前显示收起态悬浮展开按钮，`App.vue` 则要在 `workspace.openInitialView()` 和路由恢复完成后，再统一执行 `syncCollapsedControlVisibilityWithMainWindow(false) + window.hide()`，这样才能避免“用户手动双击打开应用也被静默到托盘”以及“静默启动后主窗口隐藏了，但顶部悬浮按钮残留在桌面”的回归。
 
 ## 当前实现结构
 
@@ -70,7 +80,7 @@
 
 1. 当前阶段不做统一消息协议，只做网页聚合、切换与状态保留。
 2. 当前阶段不清理远程页面缓存，保留登录态与会话状态优先级最高。
-3. 设置页当前只覆盖快捷键与主题，不扩展更多系统设置。
+3. 设置页当前覆盖快捷键、主题、语言、开机自启、静默启动与关闭窗口行为，不再只限于快捷键与主题。
 4. 当前优先保证 Windows 下的可运行性与可打包性。
 
 ## 已知风险

@@ -10,6 +10,7 @@ import { ref } from "vue";
 
 import { translate } from "../lib/i18n";
 import { usePreferencesStore } from "./preferences";
+import { useWorkspaceStore } from "./workspace";
 
 const DEFAULT_SHORTCUT = "Shift+Alt+W";
 
@@ -76,18 +77,32 @@ export const useHotkeyStore = defineStore("hotkey", () => {
   }
 
   /**
-   * 将主窗口恢复到最前。
+   * 隐藏主窗口，并同步隐藏收起态展开按钮。
    */
-  async function revealAppWindow() {
+  async function hideAppWindow() {
     const currentWindow = getCurrentWindow();
+    const workspace = useWorkspaceStore();
+
+    await workspace.syncCollapsedControlVisibilityWithMainWindow(false);
+    await currentWindow.hide();
+  }
+
+  /**
+   * 展示主窗口，并在 Windows 下尽量可靠地恢复到最前。
+   */
+  async function showAppWindow() {
+    const currentWindow = getCurrentWindow();
+    const workspace = useWorkspaceStore();
     const minimized = await currentWindow.isMinimized();
 
-    // Windows 下最小化窗口可能仍会返回 visible=true，因此恢复逻辑需要单独处理。
+    // Windows 下最小化窗口可能仍会返回 visible=true，因此恢复时要单独处理最小化状态。
     await currentWindow.show();
 
     if (minimized) {
       await currentWindow.unminimize();
     }
+
+    await workspace.syncCollapsedControlVisibilityWithMainWindow(true);
 
     try {
       await currentWindow.setAlwaysOnTop(true);
@@ -111,11 +126,11 @@ export const useHotkeyStore = defineStore("hotkey", () => {
     ]);
 
     if (!visible || minimized || !focused) {
-      await revealAppWindow();
+      await showAppWindow();
       return;
     }
 
-    await currentWindow.hide();
+    await hideAppWindow();
   }
 
   /**
@@ -220,6 +235,8 @@ export const useHotkeyStore = defineStore("hotkey", () => {
     init,
     updateShortcut,
     toggleAppVisibility,
+    showAppWindow,
+    hideAppWindow,
     dispose,
     clearStartupConflict,
   };

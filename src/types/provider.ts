@@ -8,6 +8,7 @@ export type AppLanguage = "zh-CN" | "en-US";
  * 主题模式。
  */
 export type ThemeMode = "system" | "light" | "dark";
+export type WindowCloseBehavior = "tray" | "quit";
 
 /**
  * 自定义 AI 渠道持久化结构。
@@ -39,6 +40,10 @@ export interface PreferencesSnapshot {
   camp: ProviderCamp;
   themeMode: ThemeMode;
   shortcut: string;
+  autoStartEnabled: boolean;
+  silentLaunchEnabled: boolean;
+  closeBehavior: WindowCloseBehavior;
+  closePromptEnabled: boolean;
   lastProviderId: string | null;
   customProviders: CustomProviderRecord[];
   headerCollapsed: boolean;

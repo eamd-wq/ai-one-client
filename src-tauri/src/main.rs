@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-  aiclientcore_lib::run()
+    aiclientcore_lib::run()
 }

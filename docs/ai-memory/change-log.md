@@ -7,6 +7,126 @@
 - Added a dedicated `revealAppWindow()` path that calls `show()`, `unminimize()` when needed, and briefly toggles `setAlwaysOnTop(true/false)` before `setFocus()` to make Windows restore more reliable.
 - This fixes the case where minimizing first and then pressing the shortcut would hide the app into a harder-to-restore state instead of bringing it back.
 
+## 2026-05-23 - 修正静默启动语义，仅在系统开机自启时隐藏到托盘
+
+- **改动**：将 `src-tauri/src/lib.rs` 中的 autostart 插件改为为系统开机自启入口附带 `--autostart` 参数，并新增 `is_launched_from_autostart` 命令；`src/stores/preferences.ts` 改为只有在“静默启动开关开启 + 开机自启开启 + 当前进程确实由 autostart 拉起”三者同时满足时，才把 `startupSilentLaunch` 置为 `true`；设置页静默启动说明文案也同步改为“仅开机自启时静默”。
+- **原因**：用户反馈当前实现把所有启动都当成了静默启动，导致首次手动打开应用也直接缩到托盘，影响正常使用。
+- **影响**：
+  - 用户手动双击启动应用时会正常显示主窗口。
+  - 只有系统开机自动拉起应用时，才会按“静默启动”配置隐藏到托盘。
+  - 原有“静默启动时不要让收起态悬浮按钮残留到桌面”的保护逻辑继续保留。
+
+## 2026-05-23 - 版本升级到 0.1.7 并重新产出 Windows NSIS 安装包
+
+- **改动**：将 `package.json`、`src-tauri/Cargo.toml` 与 `src-tauri/tauri.conf.json` 的版本号统一从 `0.1.6` 升到 `0.1.7`，并重新执行 `pnpm tauri build --bundles nsis`。
+- **原因**：用户要求在当前这轮功能与视觉调整后，再升级一个版本并重新打出最新的 Windows 安装包。
+- **影响**：
+  - 新版本号现在统一为 `0.1.7`。
+  - 会产出新的 Windows 安装包：`src-tauri/target/release/bundle/nsis/AIClientCore_0.1.7_x64-setup.exe`。
+  - 本次发版会以实际 `pnpm tauri build --bundles nsis` 成功为准。
+
+## 2026-05-23 - 隐藏设置页原生滚动条
+
+- **改动**：将 `src/pages/SettingsPage.vue` 的外层滚动容器改为复用 `scrollbar-hidden`，保留纵向滚动能力，同时隐藏原生滚动条。
+- **原因**：用户要求设置页也不要显示滚动条，和快速切换 AI 页面保持一致的桌面壳层观感。
+- **影响**：
+  - 设置项较多时仍可正常滚动访问完整内容。
+  - 设置页现在不会再显示原生滚动条。
+
+## 2026-05-23 - 将开机自启与静默启动默认值调整为开启
+
+- **改动**：将 `defaultPreferences` 中的 `autoStartEnabled` 与 `silentLaunchEnabled` 默认值从 `false` 调整为 `true`，并把 `preferences.init()` 里的开机自启同步逻辑改为“以本地偏好为准，对齐系统真实自启状态”，而不是单纯用系统状态覆盖本地默认值。
+- **原因**：用户要求“开机自启”和“静默启动”默认开启；如果只改前端默认值而不补系统同步逻辑，新用户首次启动时系统自启仍可能保持关闭，和产品默认行为不一致。
+- **影响**：
+  - 新用户 / 未持久化这两个字段的场景下，应用会默认启用开机自启与静默启动。
+  - 已经明确保存过这两个开关状态的老用户仍按各自历史偏好执行，不会被强制改写。
+  - 开机自启现在会在启动时主动对齐到本地偏好，避免出现“默认显示开启但系统未注册自启”的假状态。
+
+## 2026-05-23 - 替换应用 Logo 并重生成全部平台图标资源
+
+- **改动**：使用用户提供的 `C:\Users\z2818\Pictures\shuang\logo-mali.png` 作为新 Logo，先做一次居中方形裁剪，再通过 `pnpm tauri icon` 覆盖重生成 `src-tauri/icons/` 下的 `png / ico / icns / Windows Store / iOS / Android` 图标资源。
+- **原因**：用户要求把应用 Logo 更换为新的本地图像，并使用合适工具裁剪生成桌面应用所需的各尺寸图标，旧 Logo 可直接替换掉。
+- **影响**：
+  - Windows、macOS、iOS、Android 对应的图标资源现在统一切换到新 Logo。
+  - 临时裁剪文件已清理，仓库里只保留正式图标资源。
+  - `pnpm tauri build --bundles nsis` 已通过，新的 Windows 安装包已重新生成。
+
+## 2026-05-23 - 新增开机自启与静默启动设置
+
+- **改动**：接入官方 `tauri-plugin-autostart` / `@tauri-apps/plugin-autostart`，为 `preferences` 新增 `autoStartEnabled` 与 `silentLaunchEnabled` 持久化字段；设置页新增“开机自启 / 静默启动”两张卡片式开关；应用启动时如果开启静默启动，会在恢复工作区与路由后自动隐藏主窗口并同步隐藏收起态悬浮展开按钮。
+- **原因**：用户要求支持在设置页开启/关闭系统开机自启，并额外提供一个“静默启动”开关，让应用启动后直接缩小到托盘运行。
+- **影响**：
+  - Windows / macOS 后续都走官方 autostart 插件链路，不再需要自定义开机项脚本。
+  - 静默启动现在是一个独立开关，并会在下次启动时生效。
+  - 为避免回归，收起态展开按钮在静默启动阶段不会提前显示到桌面。
+  - `pnpm typecheck`、`pnpm lint`、`pnpm build` 与 `cargo check` 已通过。
+
+## 2026-05-23 - 版本升级到 0.1.6 并重新产出 Windows NSIS 安装包
+
+- **改动**：将 `package.json`、`src-tauri/Cargo.toml` 与 `src-tauri/tauri.conf.json` 的版本号统一从 `0.1.5` 升到 `0.1.6`，并重新执行 `pnpm tauri build --bundles nsis`。
+- **原因**：用户要求在当前托盘恢复修复确认后，再升级一个版本并重新打出最新安装包，便于继续分发验证。
+- **影响**：
+  - 新版本号现在统一为 `0.1.6`。
+  - 会产出新的 Windows 安装包：`src-tauri/target/release/bundle/nsis/AIClientCore_0.1.6_x64-setup.exe`。
+  - 本次发版会以实际 `pnpm tauri build --bundles nsis` 成功为准。
+
+## 2026-05-23 - 修复托盘右键“打开面板”无效，并让双击托盘图标同样恢复主窗口
+
+- **改动**：将 `src-tauri/src/lib.rs` 的托盘恢复链路从 `TrayIconBuilder` 局部回调收敛到 `tauri::Builder::on_menu_event` 与 `tauri::Builder::on_tray_icon_event`，统一通过 `handle_tray_menu_event()` / `handle_tray_icon_event()` 分发“打开面板 / 退出应用 / Windows 左键单击 / Windows 左键双击恢复”；同时把前端托盘恢复改为直接复用 `src/stores/hotkey.ts` 的 `showAppWindow()`，不再在 `App.vue` 复制另一套显示逻辑，并在 Rust 侧补一个 `show_main_window_fallback()` 兜底。
+- **原因**：用户反馈托盘图标右键菜单里的“打开面板”点击无效，并补充要求双击托盘图标也要能唤起主窗口，因此需要把托盘恢复动作统一收敛到与快捷键一致的展示链路。
+- **影响**：
+  - 托盘右键“打开面板”与“退出应用”现在都走同一条应用级 Rust 回调。
+  - Windows 左键单击和双击托盘图标都会请求恢复主窗口。
+  - 前端收到 `app:restore-from-tray` 事件后，会直接走与全局快捷键一致的 `showAppWindow()` 展示链路，不再只做 overlay 显隐，也不再维护第二套窗口恢复逻辑。
+  - Rust 侧同时保留了原生 `show/unminimize/focus` 兜底，减少前端事件链偶发失效时的恢复失败概率。
+  - `pnpm typecheck`、`pnpm lint`、`pnpm build` 与 `cargo check` 已通过；这类托盘回调改动需要完整重启 Tauri 进程后再验证，前端 HMR 不足以覆盖。
+
+## 2026-05-23 - 调整关闭确认面板布局并统一托盘菜单中文文案
+
+- **改动**：将 `src/App.vue` 的关闭确认面板改为“标题区右上角关闭 icon + 下方双主操作按钮 + 不再提示勾选”的布局，移除底部取消按钮，并让“缩小到托盘 / 关闭应用”两个按钮使用完全一致的样式；同时把 `src-tauri/src/lib.rs` 中托盘右键菜单的 `Show / Quit` 文案改为“打开面板 / 退出应用”。
+- **原因**：用户要求当前提示面板减少割裂感，去掉会强化默认选项的重点色，让两种关闭行为在视觉上保持公平选择。
+- **影响**：
+  - 关闭确认面板现在通过右上角关闭 icon 取消，视觉结构更集中。
+  - 两个主操作按钮不再根据当前默认行为使用强调色，避免给用户强引导。
+  - Windows 托盘右键菜单文案已统一为中文。
+  - `pnpm typecheck`、`pnpm lint`、`pnpm build` 与 `cargo check` 已通过。
+
+## 2026-05-22 - 新增关闭时托盘 / 退出分流与可记忆选择
+
+- **改动**：为 `preferences` 新增 `closeBehavior` 与 `closePromptEnabled` 持久化字段；`src/App.vue` 接入主窗口关闭拦截、自定义关闭提示框与“记住我的选择”；`src/pages/SettingsPage.vue` 新增关闭行为与是否继续询问配置；`src-tauri/src/lib.rs` 新增托盘 / 菜单栏图标、恢复主窗口事件和 `exit_application` 命令；`src-tauri/Cargo.toml` 为 `tauri` 打开 `tray-icon` feature。
+- **原因**：用户要求关闭软件时让用户选择“缩小到托盘”或“关闭应用”，默认缩小到托盘，并支持“不再提示”记忆；同时设置页也要能配置关闭行为，并兼容 Windows 与 macOS。
+- **影响**：
+  - 关闭主窗口时现在会弹出可记忆的关闭行为提示；勾选“不再提示”后，后续会直接按保存的行为执行。
+  - 设置页现在可以手动切换关闭行为，并重新开启“关闭前询问”。
+  - Windows / 当前开发机已通过 `pnpm typecheck`、`pnpm lint`、`pnpm build` 与 `cargo check`。
+  - 额外补装了 `aarch64-apple-darwin` / `x86_64-apple-darwin` target，并通过 `DOCS_RS=1 cargo check --target ...` 静态验证了本次 Rust 改动的 Apple 目标代码路径；但真正的 macOS 构建与运行表现仍需在 Mac 机器或具备完整 Objective-C / Apple 工具链的环境里确认。
+
+## 2026-05-22 - 关闭确认弹框弹起时临时隐藏 provider 子 Webview
+
+- **改动**：在 `src/stores/workspace.ts` 新增“为弹框临时隐藏 / 恢复 provider 视图”的方法，并在 `src/App.vue` 的关闭确认弹框打开、取消和选择托盘时接入这条链路。
+- **原因**：用户补充说明当前 provider 页面承载在层级高于主壳层的原生子 `Webview` 中，直接在主窗口 DOM 里弹确认框会被子 `Webview` 盖住。
+- **影响**：
+  - 关闭确认弹框出现时，当前 provider 子 `Webview` 和收起态悬浮按钮会先被临时隐藏，弹框可正常显示。
+  - 取消关闭后会恢复 provider 页面；选择“缩小到托盘”时，会先把 provider 恢复到后台状态，再隐藏主窗口，避免下次恢复只剩壳层没有网页。
+  - `pnpm typecheck`、`pnpm lint`、`pnpm build` 已通过。
+
+## 2026-05-22 - 版本升级到 0.1.5 并重新产出 Windows NSIS 安装包
+
+- **改动**：将 `package.json`、`src-tauri/tauri.conf.json` 与 `src-tauri/Cargo.toml` 的版本号统一从 `0.1.4` 升到 `0.1.5`，并重新执行 `pnpm tauri build --bundles nsis`。
+- **原因**：用户要求再打一个最新的 Windows 安装包，并明确要求版本号继续上升一个版本。
+- **影响**：
+  - 成功生成新的 Windows 安装包：`src-tauri/target/release/bundle/nsis/AIClientCore_0.1.5_x64-setup.exe`。
+  - `pnpm tauri build --bundles nsis` 已通过。
+
+## 2026-05-22 - 修复快捷键隐藏主窗口后展开按钮残留在桌面
+
+- **改动**：在 `src/stores/workspace.ts` 新增 `syncCollapsedControlVisibilityWithMainWindow()`，并在 `src/stores/hotkey.ts` 的快捷键显隐链路里同步隐藏/恢复收起态展开按钮。
+- **原因**：顶部展开按钮承载在独立 `WebviewWindow` 中，主窗口执行 `hide()` 时它不会自动一起隐藏，所以快捷键收起应用后会残留在屏幕上。
+- **影响**：
+  - 使用全局快捷键隐藏软件时，收起态展开按钮会一起消失。
+  - 再次通过快捷键显示软件时，如果当前仍是收起态工作区，会按本地状态重新显示按钮。
+  - `pnpm typecheck`、`pnpm lint` 已通过。
+
 ## 2026-05-22 - Fix collapsed overlay intercepting clicks on other pages
 
 - Removed the temporary focus-based workaround in `src/components/AppShell.vue`.
