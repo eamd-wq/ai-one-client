@@ -1,0 +1,10 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "provider-open-links",
+  "description": "Allow remote provider webviews to open safe external links with the system default application.",
+  "webviews": ["provider:*"],
+  "remote": {
+    "urls": ["http://*", "https://*"]
+  },
+  "permissions": ["opener:allow-open-url", "opener:allow-default-urls"]
+}

@@ -53,37 +53,51 @@ export const usePreferencesStore = defineStore("preferences", () => {
 
     await appStore.init();
 
-    language.value =
-      (await appStore.get<AppLanguage>("language")) ?? defaultPreferences.language;
-    camp.value = (await appStore.get<ProviderCamp>("camp")) ?? defaultPreferences.camp;
-    themeMode.value =
-      (await appStore.get<ThemeMode>("themeMode")) ?? defaultPreferences.themeMode;
-    shortcut.value =
-      (await appStore.get<string>("shortcut")) ?? defaultPreferences.shortcut;
+    const [
+      nextLanguage,
+      nextCamp,
+      nextThemeMode,
+      nextShortcut,
+      nextAutoStartEnabled,
+      nextSilentLaunchEnabled,
+      nextCloseBehavior,
+      nextClosePromptEnabled,
+      nextLastProviderId,
+      nextCustomProviders,
+      nextHeaderCollapsed,
+      nextCollapsedControlLeft,
+    ] = await Promise.all([
+      appStore.get<AppLanguage>("language"),
+      appStore.get<ProviderCamp>("camp"),
+      appStore.get<ThemeMode>("themeMode"),
+      appStore.get<string>("shortcut"),
+      appStore.get<boolean>("autoStartEnabled"),
+      appStore.get<boolean>("silentLaunchEnabled"),
+      appStore.get<WindowCloseBehavior>("closeBehavior"),
+      appStore.get<boolean>("closePromptEnabled"),
+      appStore.get<string | null>("lastProviderId"),
+      appStore.get<CustomProviderRecord[]>("customProviders"),
+      appStore.get<boolean>("headerCollapsed"),
+      appStore.get<number | null>("collapsedControlLeft"),
+    ]);
+
+    language.value = nextLanguage ?? defaultPreferences.language;
+    camp.value = nextCamp ?? defaultPreferences.camp;
+    themeMode.value = nextThemeMode ?? defaultPreferences.themeMode;
+    shortcut.value = nextShortcut ?? defaultPreferences.shortcut;
     autoStartEnabled.value =
-      (await appStore.get<boolean>("autoStartEnabled")) ??
-      defaultPreferences.autoStartEnabled;
+      nextAutoStartEnabled ?? defaultPreferences.autoStartEnabled;
     silentLaunchEnabled.value =
-      (await appStore.get<boolean>("silentLaunchEnabled")) ??
-      defaultPreferences.silentLaunchEnabled;
-    closeBehavior.value =
-      (await appStore.get<WindowCloseBehavior>("closeBehavior")) ??
-      defaultPreferences.closeBehavior;
+      nextSilentLaunchEnabled ?? defaultPreferences.silentLaunchEnabled;
+    closeBehavior.value = nextCloseBehavior ?? defaultPreferences.closeBehavior;
     closePromptEnabled.value =
-      (await appStore.get<boolean>("closePromptEnabled")) ??
-      defaultPreferences.closePromptEnabled;
-    lastProviderId.value =
-      (await appStore.get<string | null>("lastProviderId")) ??
-      defaultPreferences.lastProviderId;
+      nextClosePromptEnabled ?? defaultPreferences.closePromptEnabled;
+    lastProviderId.value = nextLastProviderId ?? defaultPreferences.lastProviderId;
     customProviders.value =
-      (await appStore.get<CustomProviderRecord[]>("customProviders")) ??
-      defaultPreferences.customProviders;
-    headerCollapsed.value =
-      (await appStore.get<boolean>("headerCollapsed")) ??
-      defaultPreferences.headerCollapsed;
+      nextCustomProviders ?? defaultPreferences.customProviders;
+    headerCollapsed.value = nextHeaderCollapsed ?? defaultPreferences.headerCollapsed;
     collapsedControlLeft.value =
-      (await appStore.get<number | null>("collapsedControlLeft")) ??
-      defaultPreferences.collapsedControlLeft;
+      nextCollapsedControlLeft ?? defaultPreferences.collapsedControlLeft;
 
     let launchedFromAutostart = false;
     try {
@@ -95,6 +109,31 @@ export const usePreferencesStore = defineStore("preferences", () => {
     startupSilentLaunch.value =
       silentLaunchEnabled.value && autoStartEnabled.value && launchedFromAutostart;
 
+    await syncTheme();
+
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    media.addEventListener("change", () => {
+      if (themeMode.value === "system") {
+        void syncTheme();
+      }
+    });
+
+    const currentWindow = getCurrentWindow();
+    await currentWindow.onThemeChanged(async () => {
+      if (themeMode.value === "system") {
+        await syncTheme();
+      }
+    });
+
+    isReady.value = true;
+
+    void syncAutoStartState();
+  }
+
+  /**
+   * 后台同步系统开机自启状态，避免阻塞首屏。
+   */
+  async function syncAutoStartState() {
     try {
       const systemAutoStartEnabled = await isAutoStartEnabled();
       const autoStartRegistrationVersion =
@@ -122,24 +161,6 @@ export const usePreferencesStore = defineStore("preferences", () => {
     } catch (error) {
       console.warn("Failed to synchronize autostart state.", error);
     }
-
-    await syncTheme();
-
-    const media = window.matchMedia("(prefers-color-scheme: dark)");
-    media.addEventListener("change", () => {
-      if (themeMode.value === "system") {
-        void syncTheme();
-      }
-    });
-
-    const currentWindow = getCurrentWindow();
-    await currentWindow.onThemeChanged(async () => {
-      if (themeMode.value === "system") {
-        await syncTheme();
-      }
-    });
-
-    isReady.value = true;
   }
 
   /**

@@ -157,6 +157,34 @@ async function handleSilentLaunchIfNeeded() {
  * 启动应用主流程。
  */
 onMounted(async () => {
+  try {
+    await preferences.init();
+  } catch (error) {
+    globalThis.console.error("Failed to initialize preferences.", error);
+  }
+
+  const hasSavedProvider = Boolean(preferences.lastProviderId);
+
+  if (hasSavedProvider) {
+    await router.replace("/workspace");
+  } else {
+    await router.replace("/select");
+  }
+
+  void workspace
+    .openInitialView()
+    .catch((error) => {
+      globalThis.console.error("Failed to open initial workspace view.", error);
+      void workspace.showSelection();
+      void router.replace("/select");
+    });
+
+  try {
+    await hotkey.init();
+  } catch (error) {
+    globalThis.console.error("Failed to initialize hotkey.", error);
+  }
+
   const currentWindow = getCurrentWindow();
 
   registerCleanup(
@@ -184,14 +212,6 @@ onMounted(async () => {
       await handleRestoreFromTray();
     }),
   );
-
-  await workspace.openInitialView();
-
-  if (workspace.activeProviderId) {
-    await router.replace("/workspace");
-  } else {
-    await router.replace("/select");
-  }
 
   if (hotkey.startupConflictMessage) {
     preferences.clearStartupSilentLaunch();

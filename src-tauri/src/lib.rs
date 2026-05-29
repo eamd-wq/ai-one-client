@@ -3,8 +3,14 @@ use tauri::menu::MenuBuilder;
 use tauri::menu::MenuEvent;
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, Runtime};
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
+#[cfg(target_os = "windows")]
+use windows::Win32::UI::WindowsAndMessaging::{
+    GA_ROOT, GetAncestor, GetForegroundWindow, IsChild,
+};
 
 const AUTOSTART_LAUNCH_ARG: &str = "--autostart";
+const COLLAPSED_CONTROL_LABEL: &str = "overlay:collapsed-control";
 const MAIN_WINDOW_LABEL: &str = "main";
 const RESTORE_FROM_TRAY_EVENT: &str = "app:restore-from-tray";
 const TRAY_MENU_SHOW_ID: &str = "tray.show-main";
@@ -83,8 +89,34 @@ fn show_main_window_fallback<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()
     }
 
     window.show()?;
-    window.set_focus()?;
+    let _ = window.set_always_on_top(true);
+    let _ = window.set_focus();
+    let _ = window.set_always_on_top(false);
+    let _ = window.set_focus();
 
+    Ok(())
+}
+
+/**
+ * 隐藏收起态悬浮控件，避免主窗口隐藏后残留在桌面。
+ */
+fn hide_collapsed_control_fallback<R: Runtime>(app: &AppHandle<R>) {
+    if let Some(window) = app.get_webview_window(COLLAPSED_CONTROL_LABEL) {
+        let _ = window.hide();
+    }
+}
+
+/**
+ * 隐藏主窗口，并同步隐藏收起态悬浮控件。
+ */
+fn hide_main_window_fallback<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
+    hide_collapsed_control_fallback(app);
+
+    let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) else {
+        return Ok(());
+    };
+
+    window.hide()?;
     Ok(())
 }
 
@@ -190,9 +222,159 @@ fn is_launched_from_autostart() -> bool {
     std::env::args().any(|arg| arg == AUTOSTART_LAUNCH_ARG)
 }
 
+/**
+ * Windows 下判断当前前台窗口是否属于主窗口或其子 Webview。
+ */
+fn is_main_window_foreground_internal<R: Runtime>(app: &AppHandle<R>) -> Result<bool, String> {
+    #[cfg(target_os = "windows")]
+    {
+        let window = app
+            .get_webview_window(MAIN_WINDOW_LABEL)
+            .ok_or_else(|| format!("window not found: {MAIN_WINDOW_LABEL}"))?;
+
+        let hwnd = window.hwnd().map_err(|error| error.to_string())?;
+        let foreground = unsafe { GetForegroundWindow() };
+
+        if foreground.0.is_null() {
+            return Ok(false);
+        }
+
+        if hwnd == foreground {
+            return Ok(true);
+        }
+
+        let foreground_root = unsafe { GetAncestor(foreground, GA_ROOT) };
+
+        if hwnd == foreground_root {
+            return Ok(true);
+        }
+
+        let is_child_of_main = unsafe { IsChild(hwnd, foreground).as_bool() };
+        let is_child_of_foreground_root = if foreground_root.0.is_null() {
+            false
+        } else {
+            unsafe { IsChild(hwnd, foreground_root).as_bool() }
+        };
+
+        Ok(is_child_of_main || is_child_of_foreground_root)
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let window = app
+            .get_webview_window(MAIN_WINDOW_LABEL)
+            .ok_or_else(|| format!("window not found: {MAIN_WINDOW_LABEL}"))?;
+
+        window.is_focused().map_err(|error| error.to_string())
+    }
+}
+
+/**
+ * 根据窗口状态切换主窗口显隐。
+ */
+fn toggle_main_window_visibility_internal<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
+    let window = app
+        .get_webview_window(MAIN_WINDOW_LABEL)
+        .ok_or_else(|| format!("window not found: {MAIN_WINDOW_LABEL}"))?;
+
+    let visible = window.is_visible().map_err(|error| error.to_string())?;
+    let minimized = window.is_minimized().map_err(|error| error.to_string())?;
+    let foreground = if visible && !minimized {
+        is_main_window_foreground_internal(app)?
+    } else {
+        false
+    };
+
+    if !visible || minimized || !foreground {
+        show_main_window_fallback(app).map_err(|error| error.to_string())?;
+        let _ = app.emit(RESTORE_FROM_TRAY_EVENT, ());
+        return Ok(());
+    }
+
+    hide_main_window_fallback(app).map_err(|error| error.to_string())
+}
+
+/**
+ * 在主线程执行快捷键触发的窗口切换。
+ */
+fn toggle_main_window_visibility_from_shortcut<R: Runtime>(app: &AppHandle<R>) {
+    let app_handle = app.clone();
+    let _ = app.run_on_main_thread(move || {
+        let _ = toggle_main_window_visibility_internal(&app_handle);
+    });
+}
+
+/**
+ * 注册全局快捷键，并在按下时切换主窗口显隐。
+ */
+#[tauri::command]
+fn register_global_shortcut<R: Runtime>(app: AppHandle<R>, shortcut: String) -> Result<(), String> {
+    app.global_shortcut()
+        .register(shortcut.as_str())
+        .map_err(|error| error.to_string())
+}
+
+/**
+ * 取消注册全局快捷键。
+ */
+#[tauri::command]
+fn unregister_global_shortcut<R: Runtime>(
+    app: AppHandle<R>,
+    shortcut: String,
+) -> Result<(), String> {
+    app.global_shortcut()
+        .unregister(shortcut.as_str())
+        .map_err(|error| error.to_string())
+}
+
+/**
+ * 取消注册当前应用内的所有全局快捷键。
+ */
+#[tauri::command]
+fn unregister_all_global_shortcuts<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
+    app.global_shortcut()
+        .unregister_all()
+        .map_err(|error| error.to_string())
+}
+
+/**
+ * 判断当前应用是否已注册指定全局快捷键。
+ */
+#[tauri::command]
+fn is_global_shortcut_registered<R: Runtime>(app: AppHandle<R>, shortcut: String) -> bool {
+    app.global_shortcut().is_registered(shortcut.as_str())
+}
+
+/**
+ * 主窗口显示命令，供前端与托盘恢复链路复用。
+ */
+#[tauri::command]
+fn show_main_window<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
+    show_main_window_fallback(&app).map_err(|error| error.to_string())
+}
+
+/**
+ * 主窗口隐藏命令，供前端与快捷键链路复用。
+ */
+#[tauri::command]
+fn hide_main_window<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
+    hide_main_window_fallback(&app).map_err(|error| error.to_string())
+}
+
+/**
+ * 原生切换主窗口显隐。
+ */
+#[tauri::command]
+fn toggle_main_window_visibility<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
+    toggle_main_window_visibility_internal(&app)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            request_show_main_window(app);
+        }))
         .plugin(
             tauri_plugin_autostart::Builder::new()
                 .arg(AUTOSTART_LAUNCH_ARG)
@@ -215,11 +397,26 @@ pub fn run() {
         })
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::default().build())
-        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, _, event| {
+                    if event.state == ShortcutState::Pressed {
+                        toggle_main_window_visibility_from_shortcut(app);
+                    }
+                })
+                .build(),
+        )
         .invoke_handler(tauri::generate_handler![
             apply_theme_to_webview,
             exit_application,
-            is_launched_from_autostart
+            is_launched_from_autostart,
+            is_global_shortcut_registered,
+            register_global_shortcut,
+            show_main_window,
+            hide_main_window,
+            unregister_all_global_shortcuts,
+            unregister_global_shortcut,
+            toggle_main_window_visibility
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

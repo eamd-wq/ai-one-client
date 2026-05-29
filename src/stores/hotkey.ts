@@ -1,10 +1,4 @@
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import {
-  isRegistered,
-  register,
-  unregister,
-  unregisterAll,
-} from "@tauri-apps/plugin-global-shortcut";
+import { invoke } from "@tauri-apps/api/core";
 import { defineStore } from "pinia";
 import { ref } from "vue";
 
@@ -35,7 +29,8 @@ export const useHotkeyStore = defineStore("hotkey", () => {
       normalizedMessage.includes("already registered") ||
       normalizedMessage.includes("already in use") ||
       normalizedMessage.includes("hotkey is already registered") ||
-      normalizedMessage.includes("accelerator is already registered")
+      normalizedMessage.includes("accelerator is already registered") ||
+      normalizedMessage.includes("unable to register hotkey")
     );
   }
 
@@ -80,55 +75,30 @@ export const useHotkeyStore = defineStore("hotkey", () => {
    * 隐藏主窗口，并同步隐藏收起态展开按钮。
    */
   async function hideAppWindow() {
-    const currentWindow = getCurrentWindow();
-    const workspace = useWorkspaceStore();
-
-    await workspace.syncCollapsedControlVisibilityWithMainWindow(false);
-    await currentWindow.hide();
+    await invoke("hide_main_window");
   }
 
   /**
-   * 展示主窗口，并在 Windows 下尽量可靠地恢复到最前。
+   * 展示主窗口，并尽量可靠地恢复到最前。
    */
   async function showAppWindow() {
-    const currentWindow = getCurrentWindow();
     const workspace = useWorkspaceStore();
-    const minimized = await currentWindow.isMinimized();
-
-    if (minimized) {
-      await currentWindow.unminimize();
-    }
-
-    await currentWindow.show();
+    await invoke("show_main_window");
     await workspace.syncCollapsedControlVisibilityWithMainWindow(true);
-
-    try {
-      await currentWindow.setAlwaysOnTop(true);
-      await currentWindow.setFocus();
-    } finally {
-      await currentWindow.setAlwaysOnTop(false);
-    }
-
-    await currentWindow.setFocus();
   }
 
   /**
    * 切换应用显示状态。
    */
   async function toggleAppVisibility() {
-    const currentWindow = getCurrentWindow();
-    const [visible, minimized, focused] = await Promise.all([
-      currentWindow.isVisible(),
-      currentWindow.isMinimized(),
-      currentWindow.isFocused(),
-    ]);
+    await invoke("toggle_main_window_visibility");
+  }
 
-    if (!visible || minimized || !focused) {
-      await showAppWindow();
-      return;
-    }
-
-    await hideAppWindow();
+  /**
+   * 判断当前应用是否已注册指定快捷键。
+   */
+  async function isShortcutRegistered(shortcut: string) {
+    return invoke<boolean>("is_global_shortcut_registered", { shortcut });
   }
 
   /**
@@ -137,21 +107,19 @@ export const useHotkeyStore = defineStore("hotkey", () => {
   async function registerShortcut(shortcut: string) {
     if (
       activeShortcut.value === shortcut &&
-      (await isRegistered(shortcut))
+      (await isShortcutRegistered(shortcut))
     ) {
       clearStartupConflict();
       return;
     }
 
     if (activeShortcut.value && activeShortcut.value !== shortcut) {
-      await unregister(activeShortcut.value);
+      await invoke("unregister_global_shortcut", {
+        shortcut: activeShortcut.value,
+      });
     }
 
-    await register(shortcut, async (event) => {
-      if (event.state === "Pressed") {
-        await toggleAppVisibility();
-      }
-    });
+    await invoke("register_global_shortcut", { shortcut });
 
     activeShortcut.value = shortcut;
     clearStartupConflict();
@@ -187,7 +155,7 @@ export const useHotkeyStore = defineStore("hotkey", () => {
       return;
     }
 
-    const alreadyRegistered = await isRegistered(nextShortcut);
+    const alreadyRegistered = await isShortcutRegistered(nextShortcut);
     if (alreadyRegistered) {
       throw new Error(
         translate(preferences.language, "hotkey.alreadyRegistered"),
@@ -197,15 +165,13 @@ export const useHotkeyStore = defineStore("hotkey", () => {
     const previousShortcut = activeShortcut.value;
 
     if (previousShortcut) {
-      await unregister(previousShortcut);
+      await invoke("unregister_global_shortcut", {
+        shortcut: previousShortcut,
+      });
     }
 
     try {
-      await register(nextShortcut, async (event) => {
-        if (event.state === "Pressed") {
-          await toggleAppVisibility();
-        }
-      });
+      await invoke("register_global_shortcut", { shortcut: nextShortcut });
     } catch (error) {
       if (previousShortcut) {
         await registerShortcut(previousShortcut);
@@ -222,7 +188,7 @@ export const useHotkeyStore = defineStore("hotkey", () => {
    * 清理所有快捷键。
    */
   async function dispose() {
-    await unregisterAll();
+    await invoke("unregister_all_global_shortcuts");
     activeShortcut.value = null;
   }
 
