@@ -15,7 +15,7 @@ type TranslationNode = {
 const messages = {
   "zh-CN": {
     common: {
-      appName: "AIClientCore",
+      appName: "AIOneClient",
       selectAi: "选择 AI",
       currentAi: "当前 AI",
       settings: "设置",
@@ -73,7 +73,7 @@ const messages = {
       hotkeyDescription: "点击下方录制区后直接按下新组合键，更新会自动生效。",
       launchEyebrow: "启动行为",
       autoStartTitle: "开机自启",
-      autoStartDescription: "随系统启动自动运行 AIClientCore。",
+      autoStartDescription: "随系统启动自动运行 AIOneClient。",
       silentLaunchTitle: "静默启动",
       silentLaunchDescription: "仅在开机自启时不显示主窗口，直接在系统托盘静默运行。",
       recordingPrompt: "请按下新的快捷键组合",
@@ -105,7 +105,7 @@ const messages = {
       invalidShortcut: "请至少包含一个修饰键和一个主按键。",
     },
     closeDialog: {
-      title: "关闭 AIClientCore",
+      title: "关闭 AIOneClient",
       description: "请选择关闭主窗口时的处理方式。",
       rememberChoice: "不再提示，记住我的选择",
     },
@@ -142,7 +142,7 @@ const messages = {
   },
   "en-US": {
     common: {
-      appName: "AIClientCore",
+      appName: "AIOneClient",
       selectAi: "Select AI",
       currentAi: "Current AI",
       settings: "Settings",
@@ -203,7 +203,7 @@ const messages = {
         "Click the recorder below and press a new shortcut combination. The update takes effect immediately.",
       launchEyebrow: "Launch Behavior",
       autoStartTitle: "Launch at Login",
-      autoStartDescription: "Start AIClientCore automatically when the system signs in.",
+      autoStartDescription: "Start AIOneClient automatically when the system signs in.",
       silentLaunchTitle: "Silent Startup",
       silentLaunchDescription:
         "Only when launched at login, hide the main window and keep the app in the tray only.",
@@ -236,7 +236,7 @@ const messages = {
       invalidShortcut: "Use at least one modifier key and one main key.",
     },
     closeDialog: {
-      title: "Close AIClientCore",
+      title: "Close AIOneClient",
       description: "Choose how the main window should behave when it is closed.",
       rememberChoice: "Don't ask again and remember my choice",
     },

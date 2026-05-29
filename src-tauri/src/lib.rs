@@ -236,7 +236,7 @@ fn setup_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
 
     let mut builder = TrayIconBuilder::with_id("main-tray")
         .menu(&menu)
-        .tooltip("AIClientCore")
+        .tooltip("AIOneClient")
         .show_menu_on_left_click(cfg!(target_os = "macos"));
 
     if let Some(icon) = app.default_window_icon().cloned() {

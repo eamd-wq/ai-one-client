@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "AIClientCore",
+  "productName": "AIOneClient",
   "version": "0.1.7",
   "identifier": "com.aione.client",
   "build": {
@@ -14,7 +14,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "AIClientCore",
+        "title": "AIOneClient",
         "width": 1440,
         "height": 920,
         "minWidth": 960,
