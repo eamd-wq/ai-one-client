@@ -109,7 +109,7 @@ pnpm tauri build --bundles nsis
 
 ```text
 src-tauri/target/release/aiclientcore.exe
-src-tauri/target/release/bundle/nsis/AIOneClient_0.1.7_x64-setup.exe
+src-tauri/target/release/bundle/nsis/AIOneClient_0.1.8_x64-setup.exe
 ```
 
 如果只需要 release 可执行文件，也可以直接运行：
