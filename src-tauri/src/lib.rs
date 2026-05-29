@@ -1,16 +1,21 @@
 use serde::Deserialize;
+use serde_json::Value;
+use std::fs;
 use tauri::menu::MenuBuilder;
 use tauri::menu::MenuEvent;
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 #[cfg(target_os = "windows")]
+use windows::Win32::Foundation::HWND;
+#[cfg(target_os = "windows")]
 use windows::Win32::UI::WindowsAndMessaging::{
-    GA_ROOT, GetAncestor, GetForegroundWindow, IsChild,
+    GetAncestor, GetForegroundWindow, GetWindowThreadProcessId, IsChild, GA_ROOT, GA_ROOTOWNER,
 };
 
 const AUTOSTART_LAUNCH_ARG: &str = "--autostart";
 const COLLAPSED_CONTROL_LABEL: &str = "overlay:collapsed-control";
+const DEFAULT_SHORTCUT: &str = "Shift+Alt+W";
 const MAIN_WINDOW_LABEL: &str = "main";
 const RESTORE_FROM_TRAY_EVENT: &str = "app:restore-from-tray";
 const TRAY_MENU_SHOW_ID: &str = "tray.show-main";
@@ -39,6 +44,47 @@ const DISABLE_CONTEXT_MENU_SCRIPT: &str = r#"
     document.addEventListener("contextmenu", disableContextMenu, true);
   })();
 "#;
+
+/**
+ * 从持久化配置读取快捷键，读取失败时回落到默认快捷键。
+ */
+fn read_saved_shortcut<R: Runtime>(app: &AppHandle<R>) -> String {
+    let Ok(config_dir) = app.path().app_config_dir() else {
+        return DEFAULT_SHORTCUT.to_string();
+    };
+
+    let store_path = config_dir.join("app-preferences.json");
+    let Ok(store_text) = fs::read_to_string(store_path) else {
+        return DEFAULT_SHORTCUT.to_string();
+    };
+
+    serde_json::from_str::<Value>(&store_text)
+        .ok()
+        .and_then(|store| {
+            store
+                .get("shortcut")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|shortcut| !shortcut.is_empty())
+                .map(ToOwned::to_owned)
+        })
+        .unwrap_or_else(|| DEFAULT_SHORTCUT.to_string())
+}
+
+/**
+ * 启动阶段注册已保存的全局快捷键，失败时只提示前端，不阻塞应用启动。
+ */
+fn register_saved_global_shortcut<R: Runtime>(app: AppHandle<R>) {
+    let shortcut = read_saved_shortcut(&app);
+
+    if let Err(error) = register_global_shortcut(app.clone(), shortcut.clone()) {
+        eprintln!("Failed to register global shortcut {shortcut}: {error}");
+        let _ = app.emit(
+            "app:global-shortcut-register-failed",
+            format!("{shortcut}: {error}"),
+        );
+    }
+}
 
 /**
  * 主题同步请求体。
@@ -77,10 +123,23 @@ fn disable_context_menu_for_webview<R: tauri::Runtime>(webview: &tauri::Webview<
 }
 
 /**
+ * 获取主窗口，优先按固定标签查找，失败时回退到当前已注册的原生窗口。
+ */
+fn get_main_window<R: Runtime>(app: &AppHandle<R>) -> Option<tauri::Window<R>> {
+    app.get_window(MAIN_WINDOW_LABEL).or_else(|| {
+        let windows = app.windows();
+        windows
+            .iter()
+            .find(|(label, _)| label.as_str() != COLLAPSED_CONTROL_LABEL)
+            .map(|(_, window)| window.clone())
+    })
+}
+
+/**
  * 恢复主窗口显示。
  */
 fn show_main_window_fallback<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
-    let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) else {
+    let Some(window) = get_main_window(app) else {
         return Ok(());
     };
 
@@ -112,7 +171,7 @@ fn hide_collapsed_control_fallback<R: Runtime>(app: &AppHandle<R>) {
 fn hide_main_window_fallback<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     hide_collapsed_control_fallback(app);
 
-    let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) else {
+    let Some(window) = get_main_window(app) else {
         return Ok(());
     };
 
@@ -223,14 +282,62 @@ fn is_launched_from_autostart() -> bool {
 }
 
 /**
+ * Windows 下判断窗口句柄是否属于当前进程。
+ */
+#[cfg(target_os = "windows")]
+fn is_current_process_window(hwnd: HWND) -> bool {
+    if hwnd.0.is_null() {
+        return false;
+    }
+
+    let mut process_id = 0;
+    unsafe {
+        GetWindowThreadProcessId(hwnd, Some(&mut process_id));
+    }
+
+    process_id == std::process::id()
+}
+
+/**
+ * Windows 下判断前台窗口是否与主窗口属于同一个窗口层级或同一进程。
+ */
+#[cfg(target_os = "windows")]
+fn is_foreground_related_to_main_window(main_hwnd: HWND, foreground: HWND) -> bool {
+    if foreground.0.is_null() {
+        return false;
+    }
+
+    if main_hwnd == foreground {
+        return true;
+    }
+
+    let foreground_root = unsafe { GetAncestor(foreground, GA_ROOT) };
+    let foreground_root_owner = unsafe { GetAncestor(foreground, GA_ROOTOWNER) };
+
+    if main_hwnd == foreground_root || main_hwnd == foreground_root_owner {
+        return true;
+    }
+
+    let is_foreground_child_of_main = unsafe { IsChild(main_hwnd, foreground).as_bool() };
+    let is_main_child_of_foreground = unsafe { IsChild(foreground, main_hwnd).as_bool() };
+
+    if is_foreground_child_of_main || is_main_child_of_foreground {
+        return true;
+    }
+
+    is_current_process_window(foreground)
+        || is_current_process_window(foreground_root)
+        || is_current_process_window(foreground_root_owner)
+}
+
+/**
  * Windows 下判断当前前台窗口是否属于主窗口或其子 Webview。
  */
 fn is_main_window_foreground_internal<R: Runtime>(app: &AppHandle<R>) -> Result<bool, String> {
     #[cfg(target_os = "windows")]
     {
-        let window = app
-            .get_webview_window(MAIN_WINDOW_LABEL)
-            .ok_or_else(|| format!("window not found: {MAIN_WINDOW_LABEL}"))?;
+        let window =
+            get_main_window(app).ok_or_else(|| format!("window not found: {MAIN_WINDOW_LABEL}"))?;
 
         let hwnd = window.hwnd().map_err(|error| error.to_string())?;
         let foreground = unsafe { GetForegroundWindow() };
@@ -239,31 +346,13 @@ fn is_main_window_foreground_internal<R: Runtime>(app: &AppHandle<R>) -> Result<
             return Ok(false);
         }
 
-        if hwnd == foreground {
-            return Ok(true);
-        }
-
-        let foreground_root = unsafe { GetAncestor(foreground, GA_ROOT) };
-
-        if hwnd == foreground_root {
-            return Ok(true);
-        }
-
-        let is_child_of_main = unsafe { IsChild(hwnd, foreground).as_bool() };
-        let is_child_of_foreground_root = if foreground_root.0.is_null() {
-            false
-        } else {
-            unsafe { IsChild(hwnd, foreground_root).as_bool() }
-        };
-
-        Ok(is_child_of_main || is_child_of_foreground_root)
+        Ok(is_foreground_related_to_main_window(hwnd, foreground))
     }
 
     #[cfg(not(target_os = "windows"))]
     {
-        let window = app
-            .get_webview_window(MAIN_WINDOW_LABEL)
-            .ok_or_else(|| format!("window not found: {MAIN_WINDOW_LABEL}"))?;
+        let window =
+            get_main_window(app).ok_or_else(|| format!("window not found: {MAIN_WINDOW_LABEL}"))?;
 
         window.is_focused().map_err(|error| error.to_string())
     }
@@ -273,9 +362,8 @@ fn is_main_window_foreground_internal<R: Runtime>(app: &AppHandle<R>) -> Result<
  * 根据窗口状态切换主窗口显隐。
  */
 fn toggle_main_window_visibility_internal<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
-    let window = app
-        .get_webview_window(MAIN_WINDOW_LABEL)
-        .ok_or_else(|| format!("window not found: {MAIN_WINDOW_LABEL}"))?;
+    let window =
+        get_main_window(app).ok_or_else(|| format!("window not found: {MAIN_WINDOW_LABEL}"))?;
 
     let visible = window.is_visible().map_err(|error| error.to_string())?;
     let minimized = window.is_minimized().map_err(|error| error.to_string())?;
@@ -300,7 +388,9 @@ fn toggle_main_window_visibility_internal<R: Runtime>(app: &AppHandle<R>) -> Res
 fn toggle_main_window_visibility_from_shortcut<R: Runtime>(app: &AppHandle<R>) {
     let app_handle = app.clone();
     let _ = app.run_on_main_thread(move || {
-        let _ = toggle_main_window_visibility_internal(&app_handle);
+        if let Err(error) = toggle_main_window_visibility_internal(&app_handle) {
+            eprintln!("Failed to toggle main window from shortcut: {error}");
+        }
     });
 }
 
@@ -309,8 +399,13 @@ fn toggle_main_window_visibility_from_shortcut<R: Runtime>(app: &AppHandle<R>) {
  */
 #[tauri::command]
 fn register_global_shortcut<R: Runtime>(app: AppHandle<R>, shortcut: String) -> Result<(), String> {
+    let app_handle = app.clone();
     app.global_shortcut()
-        .register(shortcut.as_str())
+        .on_shortcut(shortcut.as_str(), move |_, _, event| {
+            if event.state == ShortcutState::Pressed {
+                toggle_main_window_visibility_from_shortcut(&app_handle);
+            }
+        })
         .map_err(|error| error.to_string())
 }
 
@@ -388,6 +483,7 @@ pub fn run() {
         })
         .setup(|app| {
             setup_tray(&app.handle())?;
+            register_saved_global_shortcut(app.handle().clone());
             Ok(())
         })
         .on_page_load(|webview, payload| {
@@ -397,15 +493,7 @@ pub fn run() {
         })
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::default().build())
-        .plugin(
-            tauri_plugin_global_shortcut::Builder::new()
-                .with_handler(|app, _, event| {
-                    if event.state == ShortcutState::Pressed {
-                        toggle_main_window_visibility_from_shortcut(app);
-                    }
-                })
-                .build(),
-        )
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             apply_theme_to_webview,
             exit_application,

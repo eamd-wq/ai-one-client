@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, ref } from "vue";
 
 import { useI18n } from "../lib/i18n";
 import { eventToShortcut, formatShortcutLabel } from "../lib/shortcut";
@@ -15,6 +15,7 @@ const draftShortcut = ref(preferences.shortcut);
 const errorMessage = ref("");
 const successMessage = ref("");
 const isRecording = ref(false);
+const shortcutRecorderElement = ref<HTMLButtonElement | null>(null);
 
 const shortcutLabel = computed(() =>
   isRecording.value
@@ -151,10 +152,12 @@ async function applyShortcut(nextShortcut: string) {
 /**
  * 开始录制快捷键。
  */
-function startRecording() {
+async function startRecording() {
   errorMessage.value = "";
   successMessage.value = "";
   isRecording.value = true;
+  await nextTick();
+  shortcutRecorderElement.value?.focus();
 }
 
 /**
@@ -191,12 +194,25 @@ async function handleShortcutKeydown(event: globalThis.KeyboardEvent) {
 }
 
 /**
+ * 处理全局键盘事件，保证点击“录制新快捷键”按钮后也能直接捕获组合键。
+ */
+function handleDocumentKeydown(event: globalThis.KeyboardEvent) {
+  void handleShortcutKeydown(event);
+}
+
+/**
  * 恢复默认快捷键。
  */
 async function resetShortcut() {
   stopRecording();
   await applyShortcut("Shift+Alt+W");
 }
+
+globalThis.document.addEventListener("keydown", handleDocumentKeydown, true);
+
+onBeforeUnmount(() => {
+  globalThis.document.removeEventListener("keydown", handleDocumentKeydown, true);
+});
 </script>
 
 <template>
@@ -225,6 +241,7 @@ async function resetShortcut() {
 
           <div class="mt-5 flex flex-col gap-3">
             <button
+              ref="shortcutRecorderElement"
               class="flex min-h-[52px] w-full items-center justify-between rounded-[16px] border border-[var(--app-border)] bg-transparent px-4 py-3 text-left transition focus:outline-none"
               :class="
                 isRecording

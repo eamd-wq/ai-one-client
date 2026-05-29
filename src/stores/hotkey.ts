@@ -1,4 +1,11 @@
 import { invoke } from "@tauri-apps/api/core";
+import {
+  isRegistered,
+  register,
+  unregister,
+  unregisterAll,
+  type ShortcutEvent,
+} from "@tauri-apps/plugin-global-shortcut";
 import { defineStore } from "pinia";
 import { ref } from "vue";
 
@@ -20,11 +27,14 @@ export const useHotkeyStore = defineStore("hotkey", () => {
    * 判断错误是否由快捷键冲突引起。
    */
   function isShortcutConflictError(error: unknown) {
-    if (!(error instanceof Error)) {
-      return false;
-    }
+    const message =
+      error instanceof Error
+        ? error.message
+        : typeof error === "string"
+          ? error
+          : "";
+    const normalizedMessage = message.toLowerCase();
 
-    const normalizedMessage = error.message.toLowerCase();
     return (
       normalizedMessage.includes("already registered") ||
       normalizedMessage.includes("already in use") ||
@@ -95,31 +105,40 @@ export const useHotkeyStore = defineStore("hotkey", () => {
   }
 
   /**
+   * 处理全局快捷键触发事件，只在按下瞬间切换窗口状态。
+   */
+  function handleShortcutEvent(event: ShortcutEvent) {
+    if (event.state !== "Pressed") {
+      return;
+    }
+
+    void toggleAppVisibility().catch((error) => {
+      globalThis.console.error("Failed to toggle app visibility.", error);
+    });
+  }
+
+  /**
    * 判断当前应用是否已注册指定快捷键。
    */
   async function isShortcutRegistered(shortcut: string) {
-    return invoke<boolean>("is_global_shortcut_registered", { shortcut });
+    return isRegistered(shortcut);
   }
 
   /**
    * 注册指定快捷键。
    */
   async function registerShortcut(shortcut: string) {
-    if (
-      activeShortcut.value === shortcut &&
-      (await isShortcutRegistered(shortcut))
-    ) {
+    if (await isShortcutRegistered(shortcut)) {
+      activeShortcut.value = shortcut;
       clearStartupConflict();
       return;
     }
 
     if (activeShortcut.value && activeShortcut.value !== shortcut) {
-      await invoke("unregister_global_shortcut", {
-        shortcut: activeShortcut.value,
-      });
+      await unregister(activeShortcut.value);
     }
 
-    await invoke("register_global_shortcut", { shortcut });
+    await register(shortcut, handleShortcutEvent);
 
     activeShortcut.value = shortcut;
     clearStartupConflict();
@@ -165,13 +184,11 @@ export const useHotkeyStore = defineStore("hotkey", () => {
     const previousShortcut = activeShortcut.value;
 
     if (previousShortcut) {
-      await invoke("unregister_global_shortcut", {
-        shortcut: previousShortcut,
-      });
+      await unregister(previousShortcut);
     }
 
     try {
-      await invoke("register_global_shortcut", { shortcut: nextShortcut });
+      await register(nextShortcut, handleShortcutEvent);
     } catch (error) {
       if (previousShortcut) {
         await registerShortcut(previousShortcut);
@@ -188,7 +205,7 @@ export const useHotkeyStore = defineStore("hotkey", () => {
    * 清理所有快捷键。
    */
   async function dispose() {
-    await invoke("unregister_all_global_shortcuts");
+    await unregisterAll();
     activeShortcut.value = null;
   }
 
